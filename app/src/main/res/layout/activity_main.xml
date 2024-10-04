@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 네이버 지도를 표시할 Fragment -->
+    <FrameLayout
+        android:id="@+id/map"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- 현재 위치 버튼 -->
+    <Button
+        android:id="@+id/current_location_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="현재 위치"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"
+        android:layout_margin="16dp" />
+
+    <!-- 실내 모드로 전환 버튼 -->
+    <Button
+        android:id="@+id/switch_to_indoor_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="실내 모드"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_margin="16dp" />
+
+</RelativeLayout>
