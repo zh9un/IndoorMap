@@ -62,6 +62,8 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     private double[][] kalmanCovariance = new double[4][4];
     private static final double PROCESS_NOISE = 0.001;
     private static final double MEASUREMENT_NOISE = 0.01;
+    private double stepLength = 0.75; // 초기 보폭 값 (m)
+    private DestinationManager destinationManager;
 
     private LinkedList<String> movementLogs = new LinkedList<>();
     private static final int MAX_LOG_LINES = 50;
@@ -83,6 +85,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_project_b);
+        destinationManager = new DestinationManager(this, 30.0); // 목적지까지 30m로 초기화
 
         initializeUI();
         initializeSensors();
@@ -273,6 +276,8 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
         long currentTime = System.currentTimeMillis();
         float stepLength = calculateStepLength();
+        destinationManager.updateStepLength(stepLength);
+
         double stepX = stepLength * Math.sin(filteredOrientation[0]);
         double stepY = stepLength * Math.cos(filteredOrientation[0]);
 
@@ -347,6 +352,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         totalDistanceView.setText(String.format("총 이동 거리: %.2f m", totalDistance));
         String direction = getCardinalDirection(filteredOrientation[0]);
         logView.setText(String.format("방향: %s (%.0f°)", direction, Math.toDegrees(filteredOrientation[0])));
+        destinationManager.updateRemainingSteps(positionX, positionY);
     }
 
     private String getCardinalDirection(float azimuth) {
