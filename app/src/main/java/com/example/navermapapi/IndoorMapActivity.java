@@ -16,10 +16,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.FrameLayout;
-import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -27,19 +25,15 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 public class IndoorMapActivity extends AppCompatActivity {
 
     private TextView tvCurrentLocation;
     private TextView tvFloorInfo;
-    private Button btnChangeFloor;
-    private ListView lvNearbyPlaces;
+    private Button btnChangeFloorUp;
+    private Button btnChangeFloorDown;
+    private FrameLayout indoorMapContainer;
     private int currentFloor = 1;
     private IndoorMapView indoorMapView;
-    private FrameLayout indoorMapContainer;
     private int[][] floorPlan3;  // 3층 도면
     private int[][] floorPlan4;  // 4층 도면
 
@@ -72,11 +66,35 @@ public class IndoorMapActivity extends AppCompatActivity {
         updateMapView();
     }
 
-    private void changeFloor() {
-        currentFloor = (currentFloor % 5) + 1; // 1층부터 5층까지 순환
+    private void initializeViews() {
+        tvCurrentLocation = findViewById(R.id.tvCurrentLocation);
+        tvFloorInfo = findViewById(R.id.tvFloorInfo);
+        btnChangeFloorUp = findViewById(R.id.btnChangeFloorUp);
+        btnChangeFloorDown = findViewById(R.id.btnChangeFloorDown);
+        indoorMapContainer = findViewById(R.id.indoor_map_container);
+    }
+
+    private void setupListeners() {
+        btnChangeFloorUp.setOnClickListener(v -> changeFloor(true));
+        btnChangeFloorDown.setOnClickListener(v -> changeFloor(false));
+
+        Button switchToMapBtn = findViewById(R.id.switch_to_map_btn);
+        switchToMapBtn.setOnClickListener(v -> switchToMap());
+    }
+
+    private void changeFloor(boolean up) {
+        if (up) {
+            currentFloor = Math.min(currentFloor + 1, 5); // 최대 5층까지
+        } else {
+            currentFloor = Math.max(currentFloor - 1, 1); // 최소 1층
+        }
         updateFloorInfo();
         updateMapView();
         Toast.makeText(this, currentFloor + "층으로 이동했습니다.", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateFloorInfo() {
+        tvFloorInfo.setText("현재 층: " + currentFloor + "층");
     }
 
     private void updateMapView() {
@@ -96,28 +114,6 @@ public class IndoorMapActivity extends AppCompatActivity {
             Toast.makeText(this, currentFloor + "층 도면이 없습니다.", Toast.LENGTH_SHORT).show();
         }
     }
-
-    private void initializeViews() {
-        tvCurrentLocation = findViewById(R.id.tvCurrentLocation);
-        tvFloorInfo = findViewById(R.id.tvFloorInfo);
-        btnChangeFloor = findViewById(R.id.btnChangeFloor);
-        indoorMapContainer = findViewById(R.id.indoor_map_container);
-    }
-
-
-    private void setupListeners() {
-        btnChangeFloor.setOnClickListener(v -> changeFloor());
-
-        Button switchToMapBtn = findViewById(R.id.switch_to_map_btn);
-        switchToMapBtn.setOnClickListener(v -> switchToMap());
-    }
-
-
-    private void updateFloorInfo() {
-        tvFloorInfo.setText("현재 층: " + currentFloor + "층");
-    }
-
-
 
     private void initializeBluetooth() {
         BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
@@ -208,6 +204,7 @@ public class IndoorMapActivity extends AppCompatActivity {
             bluetoothLeScanner.stopScan(leScanCallback);
         }
     }
+
     private class IndoorMapView extends View {
         private Paint paint;
         private int[][] mapData;
