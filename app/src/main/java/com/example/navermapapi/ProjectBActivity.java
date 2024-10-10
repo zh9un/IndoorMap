@@ -58,7 +58,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     private static final float ALPHA = 0.05f;
     private float[] filteredOrientation = new float[3];
 
-    private double[][] kalmanState = new double[][]{{0}, {0}, {0}, {0}};
+    private double[][] kalmanState = new double[][]{{0}, {0}, {0}, {0}}; // [x, y, vx, vy]
     private double[][] kalmanCovariance = new double[4][4];
     private static final double PROCESS_NOISE = 0.001;
     private static final double MEASUREMENT_NOISE = 0.01;
@@ -73,18 +73,11 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     private TextView statusView;
     private boolean isTracking = false;
     private boolean isInitialPositionSet = false;
+    private boolean isDataReliable = false;
     private int stepCount = 0;
     private static final int RELIABLE_STEP_THRESHOLD = 5;
 
     private BeaconLocationManager beaconLocationManager;
-
-    private static final float STEP_THRESHOLD = 10.0f;
-    private static final long STEP_DELAY = 250;
-    private float[] gravity = new float[3];
-    private float[] linear_acceleration = new float[3];
-    private float last_acceleration = 0;
-    private long lastStepDetectionTime = 0;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -156,10 +149,11 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
     private void startTracking() {
         isTracking = true;
+        isDataReliable = false;
         stepCount = 0;
         registerSensors();
         startStopButton.setText("중지");
-        statusView.setText("추적 중...");
+        statusView.setText("이동 수집 중...");
         statusView.setVisibility(View.VISIBLE);
         Log.d(TAG, "Tracking started");
     }
@@ -183,18 +177,10 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     }
 
     private void registerSensors() {
-        if (accelerometer != null) {
-            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
-        }
-        if (magnetometer != null) {
-            sensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_GAME);
-        }
-        if (gyroscope != null) {
-            sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_GAME);
-        }
-        if (stepDetector != null) {
-            sensorManager.registerListener(this, stepDetector, SensorManager.SENSOR_DELAY_NORMAL);
-        }
+        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(this, stepDetector, SensorManager.SENSOR_DELAY_NORMAL);
         Log.d(TAG, "Sensors registered");
     }
 
@@ -255,7 +241,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         switch (event.sensor.getType()) {
             case Sensor.TYPE_ACCELEROMETER:
                 System.arraycopy(event.values, 0, accelerometerReading, 0, accelerometerReading.length);
-                detectStepFromAccelerometer(event.values, event.timestamp);
                 break;
             case Sensor.TYPE_MAGNETIC_FIELD:
                 System.arraycopy(event.values, 0, magnetometerReading, 0, magnetometerReading.length);
@@ -277,37 +262,15 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         }
     }
 
-    private void detectStepFromAccelerometer(float[] values, long timestamp) {
-        final float alpha = 0.8f;
-
-        gravity[0] = alpha * gravity[0] + (1 - alpha) * values[0];
-        gravity[1] = alpha * gravity[1] + (1 - alpha) * values[1];
-        gravity[2] = alpha * gravity[2] + (1 - alpha) * values[2];
-
-        linear_acceleration[0] = values[0] - gravity[0];
-        linear_acceleration[1] = values[1] - gravity[1];
-        linear_acceleration[2] = values[2] - gravity[2];
-
-        float acceleration = (float) Math.sqrt(
-                linear_acceleration[0] * linear_acceleration[0] +
-                        linear_acceleration[1] * linear_acceleration[1] +
-                        linear_acceleration[2] * linear_acceleration[2]);
-
-        float delta = acceleration - last_acceleration;
-        last_acceleration = acceleration;
-
-        if (delta > STEP_THRESHOLD) {
-            long timeNow = System.currentTimeMillis();
-            if (timeNow - lastStepDetectionTime > STEP_DELAY) {
-                Log.d(TAG, "Step detected");
-                lastStepDetectionTime = timeNow;
-                updatePosition();
-            }
-        }
-    }
-
     private void updatePosition() {
         stepCount++;
+        if (stepCount >= RELIABLE_STEP_THRESHOLD && !isDataReliable) {
+            isDataReliable = true;
+            statusView.setVisibility(View.GONE);
+        }
+
+        if (!isDataReliable) return;
+
         long currentTime = System.currentTimeMillis();
         float stepLength = calculateStepLength();
         double stepX = stepLength * Math.sin(filteredOrientation[0]);
@@ -367,9 +330,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         return stepLength;
     }
 
-    private static final float LOG_ORIENTATION_THRESHOLD = 5.0f;
-    private float lastLoggedOrientation = 0f;
-
     private void updateOrientationAngles() {
         SensorManager.getRotationMatrix(rotationMatrix, null, accelerometerReading, magnetometerReading);
         float[] orientation = new float[3];
@@ -381,21 +341,12 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         for (int i = 0; i < 3; i++) {
             filteredOrientation[i] = filteredOrientation[i] + ALPHA * (orientation[i] - filteredOrientation[i]);
         }
-
-        float currentOrientation = (float) Math.toDegrees(filteredOrientation[0]);
-        if (Math.abs(currentOrientation - lastLoggedOrientation) > LOG_ORIENTATION_THRESHOLD) {
-            Log.d(TAG, "Updated orientation: " + currentOrientation);
-            lastLoggedOrientation = currentOrientation;
-        }
-        mapView.invalidate();
     }
 
     private void updateUI() {
-        runOnUiThread(() -> {
-            totalDistanceView.setText(String.format("총 이동 거리: %.2f m", totalDistance));
-            String direction = getCardinalDirection(filteredOrientation[0]);
-            logView.setText(String.format("방향: %s (%.0f°)", direction, Math.toDegrees(filteredOrientation[0])));
-        });
+        totalDistanceView.setText(String.format("총 이동 거리: %.2f m", totalDistance));
+        String direction = getCardinalDirection(filteredOrientation[0]);
+        logView.setText(String.format("방향: %s (%.0f°)", direction, Math.toDegrees(filteredOrientation[0])));
     }
 
     private String getCardinalDirection(float azimuth) {
@@ -437,6 +388,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        // 센서 정확도 변경 처리
     }
 
     @Override
@@ -628,7 +580,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         }
     }
 
-    // Matrix operation methods
+    // 행렬 연산 메서드들
     private double[][] matrixMultiply(double[][] a, double[][] b) {
         int m = a.length;
         int n = b[0].length;
