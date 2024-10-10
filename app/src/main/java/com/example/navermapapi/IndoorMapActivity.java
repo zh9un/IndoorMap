@@ -53,6 +53,7 @@ public class IndoorMapActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_indoor_map);
 
+        // 뷰 초기화 및 Bluetooth 설정, 리스너 설정 등을 수행합니다.
         initializeViews();
         setupListeners();
         updateFloorInfo();
@@ -66,6 +67,7 @@ public class IndoorMapActivity extends AppCompatActivity {
         updateMapView();
     }
 
+    // 뷰 초기화 메서드 - UI 요소들을 초기화합니다.
     private void initializeViews() {
         tvCurrentLocation = findViewById(R.id.tvCurrentLocation);
         tvFloorInfo = findViewById(R.id.tvFloorInfo);
@@ -74,6 +76,7 @@ public class IndoorMapActivity extends AppCompatActivity {
         indoorMapContainer = findViewById(R.id.indoor_map_container);
     }
 
+    // 리스너 설정 메서드 - 버튼 클릭 리스너를 설정합니다.
     private void setupListeners() {
         btnChangeFloorUp.setOnClickListener(v -> changeFloor(true));
         btnChangeFloorDown.setOnClickListener(v -> changeFloor(false));
@@ -82,21 +85,24 @@ public class IndoorMapActivity extends AppCompatActivity {
         switchToMapBtn.setOnClickListener(v -> switchToMap());
     }
 
+    // 층 변경 메서드 - 사용자가 층을 변경할 때 호출됩니다.
     private void changeFloor(boolean up) {
         if (up) {
-            currentFloor = Math.min(currentFloor + 1, 5); // 최대 5층까지
+            currentFloor = Math.min(currentFloor + 1, 5); // 최대 5층까지 이동 가능
         } else {
-            currentFloor = Math.max(currentFloor - 1, 1); // 최소 1층
+            currentFloor = Math.max(currentFloor - 1, 1); // 최소 1층까지 이동 가능
         }
         updateFloorInfo();
         updateMapView();
         Toast.makeText(this, currentFloor + "층으로 이동했습니다.", Toast.LENGTH_SHORT).show();
     }
 
+    // 층 정보 업데이트 메서드 - 현재 층 정보를 화면에 표시합니다.
     private void updateFloorInfo() {
         tvFloorInfo.setText("현재 층: " + currentFloor + "층");
     }
 
+    // 지도 뷰 업데이트 메서드 - 층 변경 시 실내 지도 화면을 업데이트합니다.
     private void updateMapView() {
         indoorMapContainer.removeAllViews(); // 기존 뷰 제거
 
@@ -115,6 +121,7 @@ public class IndoorMapActivity extends AppCompatActivity {
         }
     }
 
+    // Bluetooth 초기화 메서드 - Bluetooth 어댑터를 초기화하고 권한을 요청합니다.
     private void initializeBluetooth() {
         BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         bluetoothAdapter = bluetoothManager.getAdapter();
@@ -127,6 +134,7 @@ public class IndoorMapActivity extends AppCompatActivity {
         requestLocationPermission();
     }
 
+    // 위치 권한 요청 메서드 - Bluetooth 스캔을 위해 위치 권한을 요청합니다.
     private void requestLocationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -142,6 +150,7 @@ public class IndoorMapActivity extends AppCompatActivity {
         }
     }
 
+    // 비콘 스캔 시작 메서드 - Bluetooth LE 스캔을 시작합니다.
     private void startBeaconScan() {
         if (!scanning) {
             handler.postDelayed(new Runnable() {
@@ -161,6 +170,7 @@ public class IndoorMapActivity extends AppCompatActivity {
         }
     }
 
+    // Bluetooth LE 스캔 콜백 - 스캔 결과를 처리합니다.
     private ScanCallback leScanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
@@ -169,6 +179,7 @@ public class IndoorMapActivity extends AppCompatActivity {
         }
     };
 
+    // 비콘 데이터 처리 메서드 - 비콘 스캔 결과를 처리하여 현재 위치를 업데이트합니다.
     private void processBeaconData(ScanResult result) {
         String deviceName = result.getDevice().getName();
         if (deviceName != null) {
@@ -176,12 +187,14 @@ public class IndoorMapActivity extends AppCompatActivity {
         }
     }
 
+    // 지도 화면으로 전환 메서드 - 실내 지도에서 메인 지도 화면으로 돌아갑니다.
     private void switchToMap() {
         Intent resultIntent = new Intent();
         setResult(RESULT_OK, resultIntent);
         finish();
     }
 
+    // 권한 요청 결과 처리 메서드 - 사용자가 권한 요청에 응답한 결과를 처리합니다.
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -197,6 +210,7 @@ public class IndoorMapActivity extends AppCompatActivity {
         }
     }
 
+    // 액티비티 종료 시 호출되는 메서드 - Bluetooth 스캔을 중지합니다.
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -205,11 +219,13 @@ public class IndoorMapActivity extends AppCompatActivity {
         }
     }
 
+    // IndoorMapView 클래스 - 실내 지도를 그리기 위한 커스텀 뷰입니다.
     private class IndoorMapView extends View {
         private Paint paint;
         private int[][] mapData;
         private float scaleFactor = 1.0f;
 
+        // IndoorMapView 생성자 - 지도 데이터를 받아 초기화합니다.
         public IndoorMapView(Context context, int[][] mapData) {
             super(context);
             this.mapData = mapData;
@@ -217,6 +233,7 @@ public class IndoorMapActivity extends AppCompatActivity {
             calculateScaleFactor();
         }
 
+        // 스케일 계산 메서드 - 화면 크기에 맞게 지도의 스케일을 계산합니다.
         private void calculateScaleFactor() {
             if (mapData == null || mapData.length == 0) return;
             int mapWidth = mapData[0].length;
@@ -229,15 +246,17 @@ public class IndoorMapActivity extends AppCompatActivity {
             }
             float scaleX = (float) viewWidth / mapWidth;
             float scaleY = (float) viewHeight / mapHeight;
-            scaleFactor = Math.min(scaleX, scaleY) * 0.9f; // 90% of the smaller scale
+            scaleFactor = Math.min(scaleX, scaleY) * 0.9f; // 90%의 크기로 설정
         }
 
+        // 뷰 크기 변경 시 호출되는 메서드 - 스케일을 다시 계산합니다.
         @Override
         protected void onSizeChanged(int w, int h, int oldw, int oldh) {
             super.onSizeChanged(w, h, oldw, oldh);
             calculateScaleFactor();
         }
 
+        // 지도 그리기 메서드 - 지도 데이터를 이용해 화면에 그립니다.
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
