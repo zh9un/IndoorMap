@@ -13,6 +13,7 @@ public class DestinationManager {
     private double stepLength = 0.75; // 초기 보폭 값 (m)
     //남은 거리 수를 표시할 TextView
     private TextView remainingStepsTextView;
+    private int remainingSteps; // 추가: 남은 걸음 수를 저장할 변수
 
     //액티비티와 목적지까지의 거리를 받아 초기화
     public DestinationManager(AppCompatActivity activity, double destinationDistance) {
@@ -49,7 +50,7 @@ public class DestinationManager {
         //남은 거리 계산(최소값 0)
         double remainingDistance = Math.max(0, destinationDistance - distanceTraveled);
         //남은 걸음 수 계산(반올림하여 정수로 계산)
-        int remainingSteps = (int) Math.ceil(remainingDistance / stepLength);
+        remainingSteps = (int) Math.ceil(remainingDistance / stepLength);
 
         //UI 업데이트
         AppCompatActivity activity = activityRef.get();
@@ -58,5 +59,10 @@ public class DestinationManager {
                 remainingStepsTextView.setText(String.format("목적지까지 남은 걸음 수: %d", remainingSteps));
             });
         }
+    }
+
+    // 추가: 현재 남은 걸음 수를 반환하는 메서드
+    public int getRemainingSteps() {
+        return remainingSteps;
     }
 }

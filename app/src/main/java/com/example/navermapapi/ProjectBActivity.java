@@ -32,6 +32,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
     private static final String TAG = "ProjectBActivity";
     private float offsetAngle = (float) Math.PI;
+    private AudioManager audioManager;
 
     private SensorManager sensorManager;
     private Sensor accelerometer, magnetometer, gyroscope, stepDetector;
@@ -86,6 +87,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_project_b);
         destinationManager = new DestinationManager(this, 30.0); // 목적지까지 30m로 초기화
+        audioManager = new AudioManager(this);
 
         initializeUI(); // UI 요소 초기화
         initializeSensors(); // 센서 초기화
@@ -367,6 +369,10 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         String direction = getCardinalDirection(filteredOrientation[0]);
         logView.setText(String.format("방향: %s (%.0f°)", direction, Math.toDegrees(filteredOrientation[0])));
         destinationManager.updateRemainingSteps(positionX, positionY);
+        int remainingSteps = destinationManager.getRemainingSteps();
+        if (remainingSteps % 10 == 0 || remainingSteps <= 5) {
+            audioManager.speak(String.format("목적지까지 %d 걸음 남았습니다.", remainingSteps));
+        }
     }
 
     // 방위각을 이용해 방향을 문자열로 반환하는 메서드
@@ -435,6 +441,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     protected void onDestroy() {
         super.onDestroy();
         beaconLocationManager.stopBeaconScan();
+        audioManager.shutdown();
         Log.d(TAG, "Activity destroyed");
     }
 
