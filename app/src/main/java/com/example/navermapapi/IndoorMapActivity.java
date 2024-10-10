@@ -1,6 +1,7 @@
 package com.example.navermapapi;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
@@ -151,6 +152,7 @@ public class IndoorMapActivity extends AppCompatActivity {
     }
 
     // 비콘 스캔 시작 메서드 - Bluetooth LE 스캔을 시작합니다.
+    @SuppressLint("MissingPermission")
     private void startBeaconScan() {
         if (!scanning) {
             handler.postDelayed(new Runnable() {
@@ -181,7 +183,7 @@ public class IndoorMapActivity extends AppCompatActivity {
 
     // 비콘 데이터 처리 메서드 - 비콘 스캔 결과를 처리하여 현재 위치를 업데이트합니다.
     private void processBeaconData(ScanResult result) {
-        String deviceName = result.getDevice().getName();
+        @SuppressLint("MissingPermission") String deviceName = result.getDevice().getName();
         if (deviceName != null) {
             tvCurrentLocation.setText("현재 위치: " + deviceName + " 근처");
         }
@@ -211,6 +213,7 @@ public class IndoorMapActivity extends AppCompatActivity {
     }
 
     // 액티비티 종료 시 호출되는 메서드 - Bluetooth 스캔을 중지합니다.
+    @SuppressLint("MissingPermission")
     @Override
     protected void onDestroy() {
         super.onDestroy();
