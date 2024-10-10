@@ -19,6 +19,12 @@
         android:layout_alignParentStart="true"
         android:layout_margin="16dp" />
 
+    <Button
+        android:id="@+id/start_project_b_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="실내 측위 시작" />
+
     <!-- 실내 모드로 전환 버튼 -->
     <Button
         android:id="@+id/switch_to_indoor_btn"
