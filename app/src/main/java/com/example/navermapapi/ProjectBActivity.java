@@ -1,10 +1,6 @@
 package com.example.navermapapi;
 
 import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Path;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -12,8 +8,6 @@ import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
-import android.view.MotionEvent;
-import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -49,7 +43,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     private long lastUpdateTime = 0;
     private static final long UPDATE_INTERVAL = 50;
 
-    private Paint paint;
     private List<Double> trailX = new ArrayList<>();
     private List<Double> trailY = new ArrayList<>();
     private FrameLayout container;
@@ -93,10 +86,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         initializeSensors(); // 센서 초기화
         initializeBeaconManager(); // 비콘 매니저 초기화
 
-        paint = new Paint();
-        paint.setAntiAlias(true);
-        paint.setStrokeWidth(5f);
-
         for (int i = 0; i < 4; i++) {
             kalmanCovariance[i][i] = 1000;
         }
@@ -105,7 +94,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         Log.d(TAG, "ProjectBActivity onCreate completed");
     }
 
-    // UI 초기화 메서드 - UI 요소를 초기화하고 리스너를 설정합니다.
     private void initializeUI() {
         container = findViewById(R.id.map_container);
         logView = findViewById(R.id.log_view);
@@ -132,7 +120,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         backToMainButton.setOnClickListener(v -> finish()); // 메인 화면으로 돌아가기
     }
 
-    // 센서 초기화 메서드 - 필요한 센서들을 초기화합니다.
     private void initializeSensors() {
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
@@ -141,13 +128,11 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         stepDetector = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR);
     }
 
-    // 비콘 매니저 초기화 메서드 - 비콘을 이용한 위치 추적을 위해 비콘 매니저를 초기화합니다.
     private void initializeBeaconManager() {
         beaconLocationManager = new BeaconLocationManager(this, this);
         Log.d(TAG, "BeaconLocationManager initialized");
     }
 
-    // 추적 시작/중지 토글 메서드
     private void toggleTracking() {
         if (isTracking) {
             stopTracking(); // 추적 중지
@@ -156,7 +141,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         }
     }
 
-    // 추적 시작 메서드 - 센서 리스너를 등록하고 추적을 시작합니다.
     private void startTracking() {
         isTracking = true;
         isDataReliable = false;
@@ -168,7 +152,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         Log.d(TAG, "Tracking started");
     }
 
-    // 추적 중지 메서드 - 센서 리스너를 해제하고 추적을 중지합니다.
     private void stopTracking() {
         isTracking = false;
         unregisterSensors();
@@ -177,7 +160,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         Log.d(TAG, "Tracking stopped");
     }
 
-    // 초기 위치 설정 메서드 - 비콘 스캔을 통해 초기 위치를 설정합니다.
     private void resetInitialPosition() {
         isInitialPositionSet = false;
         statusView.setText("초기 위치 설정 중...");
@@ -188,7 +170,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         stopTracking();
     }
 
-    // 센서 리스너 등록 메서드 - 센서 데이터를 수집하기 위해 리스너를 등록합니다.
     private void registerSensors() {
         sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
         sensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_GAME);
@@ -197,14 +178,13 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         Log.d(TAG, "Sensors registered");
     }
 
-    // 센서 리스너 해제 메서드 - 센서 데이터를 수집 중단하기 위해 리스너를 해제합니다.
     private void unregisterSensors() {
         sensorManager.unregisterListener(this);
         Log.d(TAG, "Sensors unregistered");
     }
+
     @Override
     public void onLocationEstimated(double x, double y) {
-        // 초기 위치 설정 완료 시 호출되는 메서드
         if (!isInitialPositionSet) {
             positionX = x;
             positionY = y;
@@ -228,7 +208,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
     @Override
     public void onLocationEstimationFailed() {
-        // 초기 위치 설정 실패 시 호출되는 메서드
         runOnUiThread(() -> {
             statusView.setText("초기 위치 설정 실패. 기본 위치로 시작합니다.");
             resetInitialPositionButton.setEnabled(true);
@@ -243,6 +222,8 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
                 trailX.add(positionX);
                 trailY.add(positionY);
 
+                mapView.invalidate();
+
                 startTracking();
             }
             statusView.setVisibility(View.GONE);
@@ -251,7 +232,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        // 센서 값이 변경될 때 호출되는 메서드
         if (!isTracking || !isInitialPositionSet) return;
 
         switch (event.sensor.getType()) {
@@ -278,7 +258,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         }
     }
 
-    // 위치 업데이트 메서드 - 걸음 감지 후 위치를 업데이트합니다.
     private void updatePosition() {
         stepCount++;
         if (stepCount >= RELIABLE_STEP_THRESHOLD && !isDataReliable) {
@@ -332,12 +311,12 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         addMovementLog(prevX, prevY, positionX, positionY, currentTime);
 
         lastStepTime = currentTime;
+        mapView.updatePosition(positionX, positionY);
         mapView.invalidate();
         Log.d(TAG, "Step detected, new position: (" + positionX + ", " + positionY + ")");
     }
 
 
-    // 보폭 계산 메서드 - 가속도계 데이터를 기반으로 동적으로 보폭을 계산합니다.
     private float calculateStepLength() {
         float accelerationMagnitude = (float) Math.sqrt(
                 accelerometerReading[0] * accelerometerReading[0] +
@@ -351,7 +330,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         return stepLength;
     }
 
-    // 방향 각도 업데이트 메서드 - 센서 데이터를 통해 방향 각도를 계산하고 필터링합니다.
     private void updateOrientationAngles() {
         SensorManager.getRotationMatrix(rotationMatrix, null, accelerometerReading, magnetometerReading);
         float[] orientation = new float[3];
@@ -363,8 +341,10 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         for (int i = 0; i < 3; i++) {
             filteredOrientation[i] = filteredOrientation[i] + ALPHA * (orientation[i] - filteredOrientation[i]);
         }
+
+        mapView.updateOrientation(filteredOrientation);
     }
-    // UI 업데이트 메서드 - 총 이동 거리와 방향을 UI에 반영합니다.
+
     private void updateUI() {
         totalDistanceView.setText(String.format("총 이동 거리: %.2f m", totalDistance));
         String direction = getCardinalDirection(filteredOrientation[0]);
@@ -376,7 +356,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         }
     }
 
-    // 방위각을 이용해 방향을 문자열로 반환하는 메서드
     private String getCardinalDirection(float azimuth) {
         float degrees = (float) Math.toDegrees(azimuth);
         if (degrees < 0) {
@@ -386,7 +365,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         return directions[(int) Math.round(degrees / 45) % 8];
     }
 
-    // 이동 로그 추가 메서드 - 이전 위치와 현재 위치를 기반으로 이동 로그를 추가합니다.
     private void addMovementLog(double fromX, double fromY, double toX, double toY, long time) {
         double dx = toX - fromX;
         double dy = toY - fromY;
@@ -405,7 +383,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         Log.d(TAG, "Movement logged: " + log);
     }
 
-    // 이동 로그 뷰 업데이트 메서드 - 이동 로그를 UI에 업데이트합니다.
     private void updateMovementLogView() {
         runOnUiThread(() -> {
             StringBuilder sb = new StringBuilder();
@@ -446,175 +423,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         Log.d(TAG, "Activity destroyed");
     }
 
-    // 지도 뷰 클래스 - 사용자의 위치와 이동 경로를 시각화합니다.
-    private class MapView extends View {
-        private static final float ARROW_SIZE = 60f;
-        private float scaleFactor = 200f;
-        private float offsetX = 0f;
-        private float offsetY = 0f;
-        private ScaleGestureDetector scaleDetector;
-        private float lastTouchX;
-        private float lastTouchY;
-        private static final int INVALID_POINTER_ID = -1;
-        private int activePointerId = INVALID_POINTER_ID;
-
-        public MapView(Context context) {
-            super(context);
-            scaleDetector = new ScaleGestureDetector(context, new ScaleListener());
-        }
-
-        @Override
-        public boolean onTouchEvent(MotionEvent ev) {
-            scaleDetector.onTouchEvent(ev);
-
-            final int action = ev.getAction();
-            switch (action & MotionEvent.ACTION_MASK) {
-                case MotionEvent.ACTION_DOWN: {
-                    final float x = ev.getX();
-                    final float y = ev.getY();
-                    lastTouchX = x;
-                    lastTouchY = y;
-                    activePointerId = ev.getPointerId(0);
-                    break;
-                }
-                case MotionEvent.ACTION_MOVE: {
-                    final int pointerIndex = ev.findPointerIndex(activePointerId);
-                    final float x = ev.getX(pointerIndex);
-                    final float y = ev.getY(pointerIndex);
-                    if (!scaleDetector.isInProgress()) {
-                        final float dx = x - lastTouchX;
-                        final float dy = y - lastTouchY;
-                        offsetX += dx;
-                        offsetY += dy;
-                        invalidate();
-                    }
-                    lastTouchX = x;
-                    lastTouchY = y;
-                    break;
-                }
-                case MotionEvent.ACTION_UP: {
-                    activePointerId = INVALID_POINTER_ID;
-                    break;
-                }
-                case MotionEvent.ACTION_CANCEL: {
-                    activePointerId = INVALID_POINTER_ID;
-                    break;
-                }
-                case MotionEvent.ACTION_POINTER_UP: {
-                    final int pointerIndex = (ev.getAction() & MotionEvent.ACTION_POINTER_INDEX_MASK)
-                            >> MotionEvent.ACTION_POINTER_INDEX_SHIFT;
-                    final int pointerId = ev.getPointerId(pointerIndex);
-                    if (pointerId == activePointerId) {
-                        final int newPointerIndex = pointerIndex == 0 ? 1 : 0;
-                        lastTouchX = ev.getX(newPointerIndex);
-                        lastTouchY = ev.getY(newPointerIndex);
-                        activePointerId = ev.getPointerId(newPointerIndex);
-                    }
-                    break;
-                }
-            }
-            return true;
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            super.onDraw(canvas);
-            int width = getWidth();
-            int height = getHeight();
-            int centerX = width / 2;
-            int centerY = height / 2;
-
-            canvas.save();
-            canvas.translate(offsetX, offsetY);
-            canvas.scale(scaleFactor, scaleFactor, centerX, centerY);
-
-            canvas.drawColor(Color.WHITE);
-
-            // 비콘 위치 그리기
-            paint.setColor(Color.GREEN);
-            paint.setStyle(Paint.Style.FILL);
-            for (BeaconLocationManager.Beacon beacon : beaconLocationManager.getBeacons()) {
-                canvas.drawCircle(centerX + (float) beacon.getX(), centerY - (float) beacon.getY(), 30f / scaleFactor, paint);
-            }
-
-            // 이동 경로 그리기
-            paint.setColor(Color.argb(76, 0, 255, 0));
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(20f / scaleFactor);
-            if (!trailX.isEmpty()) {
-                Path path = new Path();
-                path.moveTo(centerX + (float) trailX.get(0).doubleValue(), centerY - (float) trailY.get(0).doubleValue());
-                for (int i = 1; i < trailX.size(); i++) {
-                    path.lineTo(centerX + (float) trailX.get(i).doubleValue(), centerY - (float) trailY.get(i).doubleValue());
-                }
-                canvas.drawPath(path, paint);
-            }
-
-            // 현재 위치 그리기
-            paint.setColor(Color.RED);
-            paint.setStyle(Paint.Style.FILL);
-            canvas.drawCircle(centerX + (float) positionX, centerY - (float) positionY, 20f / scaleFactor, paint);
-
-            // 방향 화살표 그리기
-            paint.setColor(Color.BLUE);
-            float arrowX = centerX + (float) positionX;
-            float arrowY = centerY - (float) positionY;
-            float angle = filteredOrientation[0];
-
-            Path arrowHead = new Path();
-            arrowHead.moveTo(arrowX + ARROW_SIZE / scaleFactor * (float) Math.sin(angle),
-                    arrowY - ARROW_SIZE / scaleFactor * (float) Math.cos(angle));
-            arrowHead.lineTo(arrowX + ARROW_SIZE * 0.7f / scaleFactor * (float) Math.sin(angle + Math.PI * 0.875),
-                    arrowY - ARROW_SIZE * 0.7f / scaleFactor * (float) Math.cos(angle + Math.PI * 0.875));
-            arrowHead.lineTo(arrowX + ARROW_SIZE * 0.7f / scaleFactor * (float) Math.sin(angle - Math.PI * 0.875),
-                    arrowY - ARROW_SIZE * 0.7f / scaleFactor * (float) Math.cos(angle - Math.PI * 0.875));
-            arrowHead.close();
-            canvas.drawPath(arrowHead, paint);
-
-            canvas.restore();
-
-            drawCompass(canvas, width - 140, 140, 120);
-        }
-
-        // 나침반 그리기 메서드 - 나침반을 그려 사용자의 방향을 시각적으로 보여줍니다.
-        private void drawCompass(Canvas canvas, float centerX, float centerY, float radius) {
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(Color.BLACK);
-            canvas.drawCircle(centerX, centerY, radius, paint);
-
-            paint.setStyle(Paint.Style.FILL);
-            paint.setTextSize(24f);
-            paint.setTextAlign(Paint.Align.CENTER);
-
-            String[] directions = {"N", "E", "S", "W"};
-            float[] angles = {0, 90, 180, 270};
-
-            for (int i = 0; i < 4; i++) {
-                float angle = (float) Math.toRadians(angles[i] - Math.toDegrees(filteredOrientation[0]));
-                float x = centerX + (radius - 25) * (float) Math.sin(angle);
-                float y = centerY - (radius - 25) * (float) Math.cos(angle);
-                canvas.drawText(directions[i], x, y + 9, paint);
-            }
-
-            paint.setColor(Color.RED);
-            canvas.drawLine(centerX, centerY,
-                    centerX + radius * (float) Math.sin(-filteredOrientation[0]),
-                    centerY - radius * (float) Math.cos(-filteredOrientation[0]), paint);
-        }
-
-        // 확대/축소 제스처 리스너 클래스
-        private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
-            @Override
-            public boolean onScale(ScaleGestureDetector detector) {
-                scaleFactor *= detector.getScaleFactor();
-                scaleFactor = Math.max(0.1f, Math.min(scaleFactor, 10.0f));
-                invalidate();
-                return true;
-            }
-        }
-    }
-
-    // 행렬 연산 메서드들 - 칼만 필터 계산에 필요한 행렬 연산을 수행합니다.
+    // 행렬 연산 메서드들
     private double[][] matrixMultiply(double[][] a, double[][] b) {
         int m = a.length;
         int n = b[0].length;

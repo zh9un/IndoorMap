@@ -31,7 +31,7 @@ public class BeaconLocationManager {
     private static final String TAG = "BeaconLocationManager";
     private Context context;
     private BluetoothLeScanner bluetoothLeScanner;
-    private Map<String, Beacon> beacons;
+    private static Map<String, Beacon> beacons;
     private LocationCallback locationCallback;
     private static final int MIN_BEACONS_FOR_LOCATION = 3;
     private static final long SCAN_PERIOD = 10000; // 10 seconds
@@ -282,7 +282,7 @@ public class BeaconLocationManager {
         }
 
         // 현재 비콘 정보를 반환하는 메서드입니다.
-        public List<Beacon> getBeacons() {
+        public static List<Beacon> getBeacons() {
             return new ArrayList<>(beacons.values());
         }
 
