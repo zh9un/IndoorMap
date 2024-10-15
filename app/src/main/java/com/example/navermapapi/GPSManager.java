@@ -68,6 +68,10 @@ public class GPSManager {
         return currentLocation;
     }
 
+    public Location getBuildingLocation() {
+        return buildingLocationManager.getBuildingLocation();
+    }
+
     public void startLocationUpdates() {
         Log.d(TAG, "startLocationUpdates 시작");
         try {
@@ -118,13 +122,19 @@ public class GPSManager {
         }
 
         @Override
-        public void onStatusChanged(String provider, int status, Bundle extras) {}
+        public void onStatusChanged(String provider, int status, Bundle extras) {
+            // Deprecated in API level 29
+        }
 
         @Override
-        public void onProviderEnabled(String provider) {}
+        public void onProviderEnabled(String provider) {
+            // Not used
+        }
 
         @Override
-        public void onProviderDisabled(String provider) {}
+        public void onProviderDisabled(String provider) {
+            // Not used
+        }
     };
 
     public boolean isIndoor() {

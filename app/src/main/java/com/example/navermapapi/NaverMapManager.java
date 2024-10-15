@@ -6,19 +6,14 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import com.naver.maps.geometry.LatLng;
+import com.naver.maps.map.CameraUpdate;
 import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.MapFragment;
 import com.naver.maps.map.NaverMap;
 import com.naver.maps.map.OnMapReadyCallback;
-import com.naver.maps.map.CameraUpdate;
-import com.naver.maps.map.overlay.Marker;
-import com.naver.maps.geometry.LatLng;
-import com.naver.maps.map.overlay.PolylineOverlay;
 import com.naver.maps.map.overlay.InfoWindow;
-import com.naver.maps.map.util.FusedLocationSource;
-
-import java.util.ArrayList;
-import java.util.List;
+import com.naver.maps.map.overlay.Marker;
 
 public class NaverMapManager implements OnMapReadyCallback, GPSManager.OnLocationUpdateListener {
 
@@ -27,9 +22,8 @@ public class NaverMapManager implements OnMapReadyCallback, GPSManager.OnLocatio
     private NaverMap naverMap;
     private GPSManager gpsManager;
     private Marker currentMarker;
-    private PolylineOverlay polyline = new PolylineOverlay();
-    private List<LatLng> pathPoints = new ArrayList<>();
     private InfoWindow infoWindow;
+    private BuildingOutlineManager buildingOutlineManager;
 
     public NaverMapManager(Context context, GPSManager gpsManager) {
         this.context = context;
@@ -52,7 +46,7 @@ public class NaverMapManager implements OnMapReadyCallback, GPSManager.OnLocatio
     }
 
     @Override
-    public void onMapReady(NaverMap naverMap) {
+    public void onMapReady(@NonNull NaverMap naverMap) {
         try {
             this.naverMap = naverMap;
             Log.d(TAG, "onMapReady 호출됨");
@@ -65,6 +59,16 @@ public class NaverMapManager implements OnMapReadyCallback, GPSManager.OnLocatio
                 public CharSequence getText(@NonNull InfoWindow infoWindow) {
                     LatLng position = infoWindow.getPosition();
                     return String.format("위도: %.6f\n경도: %.6f", position.latitude, position.longitude);
+                }
+            });
+
+            buildingOutlineManager = new BuildingOutlineManager(naverMap);
+
+            // 건물 모서리 좌표를 UI에 표시하기 위한 리스너 설정
+            buildingOutlineManager.setOnBuildingCornerCoordinatesListener(new BuildingOutlineManager.OnBuildingCornerCoordinatesListener() {
+                @Override
+                public void onBuildingCornerCoordinatesFetched(String coordinatesText) {
+                    ((MainActivity) context).updateBuildingCornerCoordinates(coordinatesText);
                 }
             });
 
@@ -98,7 +102,6 @@ public class NaverMapManager implements OnMapReadyCallback, GPSManager.OnLocatio
             LatLng currentPosition = new LatLng(location.getLatitude(), location.getLongitude());
             updateMarkerPosition(currentPosition);
             moveCamera(currentPosition);
-            addPathPoint(currentPosition);
             showCoordinates(currentPosition);
         }
     }
@@ -118,15 +121,13 @@ public class NaverMapManager implements OnMapReadyCallback, GPSManager.OnLocatio
         naverMap.moveCamera(cameraUpdate);
     }
 
-    private void addPathPoint(LatLng point) {
-        pathPoints.add(point);
-        polyline.setCoords(pathPoints);
-        polyline.setMap(naverMap);
-    }
-
     private void showCoordinates(LatLng position) {
         infoWindow.setPosition(position);
         infoWindow.open(naverMap);
+    }
+
+    public void showBuildingOutline(boolean isIndoor) {
+        buildingOutlineManager.showBuildingOutline(isIndoor);
     }
 
     public void updateIndoorPositionOnMap(float xOffset, float yOffset) {
@@ -138,7 +139,6 @@ public class NaverMapManager implements OnMapReadyCallback, GPSManager.OnLocatio
             );
             updateMarkerPosition(currentPosition);
             moveCamera(currentPosition);
-            addPathPoint(currentPosition);
             showCoordinates(currentPosition);
         }
     }

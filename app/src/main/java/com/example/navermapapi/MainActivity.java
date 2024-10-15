@@ -4,19 +4,19 @@ import android.Manifest;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +47,8 @@ public class MainActivity extends AppCompatActivity {
             Manifest.permission.ACTIVITY_RECOGNITION
     };
 
+    private TextView buildingCornerCoordinatesView;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -60,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
         currentLocationBtn = findViewById(R.id.current_location_btn);
         switchToIndoorBtn = findViewById(R.id.switch_to_indoor_btn);
         startProjectBBtn = findViewById(R.id.start_project_b_btn);
+        buildingCornerCoordinatesView = findViewById(R.id.building_corner_coordinates);
 
         currentLocationBtn.setOnClickListener(v -> {
             if (checkLocationPermission()) {
@@ -78,7 +81,7 @@ public class MainActivity extends AppCompatActivity {
     private void checkAndRequestPermissions() {
         List<String> permissionsToRequest = new ArrayList<>();
         for (String permission : REQUIRED_PERMISSIONS) {
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(permission);
             }
         }
@@ -91,7 +94,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean checkLocationPermission() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
     private void requestLocationPermission() {
@@ -130,10 +133,13 @@ public class MainActivity extends AppCompatActivity {
                         String message = "실내 진입 감지. 건물 좌표: " + buildingCoordinates;
                         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                         Log.d(TAG, message);
+
+                        // 건물 외곽선 표시
+                        naverMapManager.showBuildingOutline(true);
                     }
-                    startIndoorMapActivity();
                 } else if (!isIndoor) {
                     Toast.makeText(this, "실외로 나왔습니다.", Toast.LENGTH_SHORT).show();
+                    naverMapManager.showBuildingOutline(false);
                 }
             });
 
@@ -172,7 +178,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,@NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
             boolean allPermissionsGranted = true;
@@ -229,5 +235,14 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         isOnProjectBPage = false;
+    }
+
+    public void updateBuildingCornerCoordinates(final String coordinatesText) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                buildingCornerCoordinatesView.setText(coordinatesText);
+            }
+        });
     }
 }
