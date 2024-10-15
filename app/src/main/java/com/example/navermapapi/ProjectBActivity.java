@@ -336,6 +336,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         Log.d(TAG, "Step detected, new position: (" + positionX + ", " + positionY + ")");
     }
 
+
     // 보폭 계산 메서드 - 가속도계 데이터를 기반으로 동적으로 보폭을 계산합니다.
     private float calculateStepLength() {
         float accelerationMagnitude = (float) Math.sqrt(

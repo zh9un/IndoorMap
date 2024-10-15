@@ -26,7 +26,11 @@ public class DestinationManager {
     private void initializeUI() {
         AppCompatActivity activity = activityRef.get();
         if (activity != null) {
-            remainingStepsTextView = activity.findViewById(R.id.remaining_steps_view); // 변경: XML 레이아웃에 정의된 TextView 참조
+            remainingStepsTextView = new TextView(activity); //새 TextView 생성
+            remainingStepsTextView.setTextSize(18); //텍스트 크기 설정
+            activity.addContentView(remainingStepsTextView, new android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT)); //화면에 TextView 추가
         }
     }
 
@@ -54,7 +58,7 @@ public class DestinationManager {
 
         //UI 업데이트
         AppCompatActivity activity = activityRef.get();
-        if (activity != null && remainingStepsTextView != null) {
+        if (activity != null) {
             activity.runOnUiThread(() -> {
                 remainingStepsTextView.setText(String.format("목적지까지 남은 걸음 수: %d", remainingSteps));
             });
