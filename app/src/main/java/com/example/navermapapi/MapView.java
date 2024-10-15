@@ -35,12 +35,17 @@ public class MapView extends View {
     private double positionX = 0.0;
     private double positionY = 0.0;
 
+    // 건물 테두리 관련 변수 추가
+    private List<LatLng> buildingCorners;
+    private boolean showBuildingOutline = false;
+
     public MapView(Context context) {
         super(context);
         scaleDetector = new ScaleGestureDetector(context, new ScaleListener());
         paint = new Paint();
         paint.setAntiAlias(true);
         paint.setStrokeWidth(5f);
+        buildingCorners = new ArrayList<>();
     }
 
     @Override
@@ -97,6 +102,24 @@ public class MapView extends View {
                 arrowY - ARROW_SIZE * 0.7f / scaleFactor * (float) Math.cos(angle - Math.PI * 0.875));
         arrowHead.close();
         canvas.drawPath(arrowHead, paint);
+
+        // 건물 테두리 그리기 (수정된 부분)
+        if (showBuildingOutline && buildingCorners != null && !buildingCorners.isEmpty()) {
+            paint.setColor(Color.RED);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(5f / scaleFactor);
+            Path buildingPath = new Path();
+            LatLng firstCorner = buildingCorners.get(0);
+            buildingPath.moveTo(centerX + (float) (firstCorner.longitude - positionX),
+                    centerY - (float) (firstCorner.latitude - positionY));
+            for (int i = 1; i < buildingCorners.size(); i++) {
+                LatLng corner = buildingCorners.get(i);
+                buildingPath.lineTo(centerX + (float) (corner.longitude - positionX),
+                        centerY - (float) (corner.latitude - positionY));
+            }
+            buildingPath.close();
+            canvas.drawPath(buildingPath, paint);
+        }
 
         canvas.restore();
 
@@ -203,6 +226,18 @@ public class MapView extends View {
         for (int i = 0; i < 3; i++) {
             filteredOrientation[i] = filteredOrientation[i] + ALPHA * (orientation[i] - filteredOrientation[i]);
         }
+        invalidate();
+    }
+
+    // 건물 테두리 설정 메서드 추가
+    public void setBuildingCorners(List<LatLng> corners) {
+        this.buildingCorners = corners;
+        invalidate();
+    }
+
+    // 건물 테두리 표시 여부 설정 메서드 추가
+    public void setShowBuildingOutline(boolean show) {
+        this.showBuildingOutline = show;
         invalidate();
     }
 }

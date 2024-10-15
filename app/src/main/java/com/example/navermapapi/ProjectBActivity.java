@@ -15,6 +15,8 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.naver.maps.geometry.LatLng;
+
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -131,6 +133,13 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     private void initializeBeaconManager() {
         beaconLocationManager = new BeaconLocationManager(this, this);
         Log.d(TAG, "BeaconLocationManager initialized");
+    }
+
+    private void initializeBuildingOutlineManager() {
+        BuildingOutlineManager buildingOutlineManager = new BuildingOutlineManager(null);  // NaverMap 객체가 없으므로 null 전달
+        List<LatLng> buildingCorners = buildingOutlineManager.getBuildingCorners();
+        mapView.setBuildingCorners(buildingCorners);
+        mapView.setShowBuildingOutline(true);
     }
 
     private void toggleTracking() {
@@ -312,6 +321,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
         lastStepTime = currentTime;
         mapView.updatePosition(positionX, positionY);
+        mapView.setShowBuildingOutline(true);
         mapView.invalidate();
         Log.d(TAG, "Step detected, new position: (" + positionX + ", " + positionY + ")");
     }
