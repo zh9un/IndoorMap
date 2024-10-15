@@ -268,7 +268,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         if (!isDataReliable) return;
 
         long currentTime = System.currentTimeMillis();
-        float stepLength = calculateStepLength(); // 보폭 계산
+        float stepLength = PositionCalculator.calculateStepLength(accelerometerReading);
         destinationManager.updateStepLength(stepLength);
 
         double stepX = stepLength * Math.sin(filteredOrientation[0]);
@@ -282,21 +282,21 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
                 {0, 0, 1, 0},
                 {0, 0, 0, 1}
         };
-        kalmanState = matrixMultiply(F, kalmanState);
-        kalmanCovariance = matrixAdd(matrixMultiply(matrixMultiply(F, kalmanCovariance), transposeMatrix(F)),
-                scalarMultiply(PROCESS_NOISE, identityMatrix(4)));
+        kalmanState = PositionCalculator.matrixMultiply(F, kalmanState);
+        kalmanCovariance = PositionCalculator.matrixAdd(PositionCalculator.matrixMultiply(PositionCalculator.matrixMultiply(F, kalmanCovariance), PositionCalculator.transposeMatrix(F)),
+                PositionCalculator.scalarMultiply(PROCESS_NOISE, PositionCalculator.identityMatrix(4)));
 
         double[][] H = {
                 {1, 0, 0, 0},
                 {0, 1, 0, 0}
         };
         double[][] measurement = {{positionX + stepX}, {positionY + stepY}};
-        double[][] y = matrixSubtract(measurement, matrixMultiply(H, kalmanState));
-        double[][] S = matrixAdd(matrixMultiply(matrixMultiply(H, kalmanCovariance), transposeMatrix(H)),
-                scalarMultiply(MEASUREMENT_NOISE, identityMatrix(2)));
-        double[][] K = matrixMultiply(matrixMultiply(kalmanCovariance, transposeMatrix(H)), inverseMatrix(S));
-        kalmanState = matrixAdd(kalmanState, matrixMultiply(K, y));
-        kalmanCovariance = matrixMultiply(matrixSubtract(identityMatrix(4), matrixMultiply(K, H)), kalmanCovariance);
+        double[][] y = PositionCalculator.matrixSubtract(measurement, PositionCalculator.matrixMultiply(H, kalmanState));
+        double[][] S = PositionCalculator.matrixAdd(PositionCalculator.matrixMultiply(PositionCalculator.matrixMultiply(H, kalmanCovariance), PositionCalculator.transposeMatrix(H)),
+                PositionCalculator.scalarMultiply(MEASUREMENT_NOISE, PositionCalculator.identityMatrix(2)));
+        double[][] K = PositionCalculator.matrixMultiply(PositionCalculator.matrixMultiply(kalmanCovariance, PositionCalculator.transposeMatrix(H)), PositionCalculator.inverseMatrix(S));
+        kalmanState = PositionCalculator.matrixAdd(kalmanState, PositionCalculator.matrixMultiply(K, y));
+        kalmanCovariance = PositionCalculator.matrixMultiply(PositionCalculator.matrixSubtract(PositionCalculator.identityMatrix(4), PositionCalculator.matrixMultiply(K, H)), kalmanCovariance);
 
         double prevX = positionX;
         double prevY = positionY;
@@ -316,20 +316,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         Log.d(TAG, "Step detected, new position: (" + positionX + ", " + positionY + ")");
     }
 
-
-    private float calculateStepLength() {
-        float accelerationMagnitude = (float) Math.sqrt(
-                accelerometerReading[0] * accelerometerReading[0] +
-                        accelerometerReading[1] * accelerometerReading[1] +
-                        accelerometerReading[2] * accelerometerReading[2]);
-
-        float baseStepLength = 0.75f;
-        float dynamicFactor = (accelerationMagnitude - 9.8f) * 0.05f;
-        float stepLength = Math.max(0.5f, Math.min(baseStepLength + dynamicFactor, 1.0f));
-        Log.d(TAG, "Calculated step length: " + stepLength);
-        return stepLength;
-    }
-
     private void updateOrientationAngles() {
         SensorManager.getRotationMatrix(rotationMatrix, null, accelerometerReading, magnetometerReading);
         float[] orientation = new float[3];
@@ -347,22 +333,13 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
     private void updateUI() {
         totalDistanceView.setText(String.format("총 이동 거리: %.2f m", totalDistance));
-        String direction = getCardinalDirection(filteredOrientation[0]);
+        String direction = PositionCalculator.getCardinalDirection(filteredOrientation[0]);
         logView.setText(String.format("방향: %s (%.0f°)", direction, Math.toDegrees(filteredOrientation[0])));
         destinationManager.updateRemainingSteps(positionX, positionY);
         int remainingSteps = destinationManager.getRemainingSteps();
         if (remainingSteps % 10 == 0 || remainingSteps <= 5) {
             audioManager.speak(String.format("목적지까지 %d 걸음 남았습니다.", remainingSteps));
         }
-    }
-
-    private String getCardinalDirection(float azimuth) {
-        float degrees = (float) Math.toDegrees(azimuth);
-        if (degrees < 0) {
-            degrees += 360;
-        }
-        String[] directions = {"북", "북동", "동", "남동", "남", "남서", "서", "북서"};
-        return directions[(int) Math.round(degrees / 45) % 8];
     }
 
     private void addMovementLog(double fromX, double fromY, double toX, double toY, long time) {
@@ -421,87 +398,5 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         beaconLocationManager.stopBeaconScan();
         audioManager.shutdown();
         Log.d(TAG, "Activity destroyed");
-    }
-
-    // 행렬 연산 메서드들
-    private double[][] matrixMultiply(double[][] a, double[][] b) {
-        int m = a.length;
-        int n = b[0].length;
-        int o = b.length;
-        double[][] result = new double[m][n];
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < n; j++) {
-                for (int k = 0; k < o; k++) {
-                    result[i][j] += a[i][k] * b[k][j];
-                }
-            }
-        }
-        return result;
-    }
-
-    private double[][] matrixAdd(double[][] a, double[][] b) {
-        int m = a.length;
-        int n = a[0].length;
-        double[][] result = new double[m][n];
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < n; j++) {
-                result[i][j] = a[i][j] + b[i][j];
-            }
-        }
-        return result;
-    }
-
-    private double[][] matrixSubtract(double[][] a, double[][] b) {
-        int m = a.length;
-        int n = a[0].length;
-        double[][] result = new double[m][n];
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < n; j++) {
-                result[i][j] = a[i][j] - b[i][j];
-            }
-        }
-        return result;
-    }
-
-    private double[][] transposeMatrix(double[][] matrix) {
-        int m = matrix.length;
-        int n = matrix[0].length;
-        double[][] transposed = new double[n][m];
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < n; j++) {
-                transposed[j][i] = matrix[i][j];
-            }
-        }
-        return transposed;
-    }
-
-    private double[][] identityMatrix(int size) {
-        double[][] identity = new double[size][size];
-        for (int i = 0; i < size; i++) {
-            identity[i][i] = 1;
-        }
-        return identity;
-    }
-
-    private double[][] scalarMultiply(double scalar, double[][] matrix) {
-        int m = matrix.length;
-        int n = matrix[0].length;
-        double[][] result = new double[m][n];
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < n; j++) {
-                result[i][j] = scalar * matrix[i][j];
-            }
-        }
-        return result;
-    }
-
-    private double[][] inverseMatrix(double[][] matrix) {
-        double det = matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0];
-        double[][] inverse = new double[2][2];
-        inverse[0][0] = matrix[1][1] / det;
-        inverse[0][1] = -matrix[0][1] / det;
-        inverse[1][0] = -matrix[1][0] / det;
-        inverse[1][1] = matrix[0][0] / det;
-        return inverse;
     }
 }
