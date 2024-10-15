@@ -164,6 +164,18 @@ public class MainActivity extends AppCompatActivity {
     private void startProjectBActivity() {
         isOnProjectBPage = true;
         Intent intent = new Intent(this, ProjectBActivity.class);
+
+        // 현재 GPS 위치 가져오기
+        Location currentLocation = gpsManager.getCurrentLocation();
+        if (currentLocation != null) {
+            intent.putExtra("LAST_LATITUDE", currentLocation.getLatitude());
+            intent.putExtra("LAST_LONGITUDE", currentLocation.getLongitude());
+        } else {
+            // GPS 위치를 가져올 수 없는 경우, 기본값 설정
+            intent.putExtra("LAST_LATITUDE", 0.0);
+            intent.putExtra("LAST_LONGITUDE", 0.0);
+        }
+
         startActivity(intent);
     }
 
