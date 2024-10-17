@@ -1,10 +1,12 @@
 package com.example.navermapapi;
 
+
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -14,7 +16,10 @@ import com.naver.maps.geometry.LatLng;
 import java.util.ArrayList;
 import java.util.List;
 
+
+
 public class MapView extends View {
+    private static final String TAG = "MapView";
     private static final float ARROW_SIZE = 60f;
     private float scaleFactor = 200f;
     private float offsetX = 0f;
@@ -103,19 +108,42 @@ public class MapView extends View {
         arrowHead.close();
         canvas.drawPath(arrowHead, paint);
 
-        // 건물 테두리 그리기 (수정된 부분)
+        // 건물 테두리 그리기
         if (showBuildingOutline && buildingCorners != null && !buildingCorners.isEmpty()) {
+            Log.d(TAG, "Drawing building outline. Number of corners: " + buildingCorners.size());
             paint.setColor(Color.RED);
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(5f / scaleFactor);
+            paint.setStrokeWidth(5f);
             Path buildingPath = new Path();
+
+            float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE;
+            float maxX = Float.MIN_VALUE, maxY = Float.MIN_VALUE;
+
+            for (LatLng corner : buildingCorners) {
+                float x = (float) (corner.longitude * 1000);
+                float y = (float) (corner.latitude * 1000);
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            }
+
+            float scaleX = width / (maxX - minX);
+            float scaleY = height / (maxY - minY);
+            float scale = Math.min(scaleX, scaleY) * 0.8f;
+
             LatLng firstCorner = buildingCorners.get(0);
-            buildingPath.moveTo(centerX + (float) (firstCorner.longitude - positionX),
-                    centerY - (float) (firstCorner.latitude - positionY));
+            float startX = (float) ((firstCorner.longitude * 1000 - minX) * scale);
+            float startY = height - (float) ((firstCorner.latitude * 1000 - minY) * scale);
+            buildingPath.moveTo(startX, startY);
+            Log.d(TAG, "First corner: (" + startX + ", " + startY + ")");
+
             for (int i = 1; i < buildingCorners.size(); i++) {
                 LatLng corner = buildingCorners.get(i);
-                buildingPath.lineTo(centerX + (float) (corner.longitude - positionX),
-                        centerY - (float) (corner.latitude - positionY));
+                float x = (float) ((corner.longitude * 1000 - minX) * scale);
+                float y = height - (float) ((corner.latitude * 1000 - minY) * scale);
+                Log.d(TAG, "Corner " + i + ": (" + x + ", " + y + ")");
+                buildingPath.lineTo(x, y);
             }
             buildingPath.close();
             canvas.drawPath(buildingPath, paint);
@@ -125,7 +153,6 @@ public class MapView extends View {
 
         drawCompass(canvas, width - 140, 140, 120);
     }
-
     private void drawCompass(Canvas canvas, float centerX, float centerY, float radius) {
         paint.setStyle(Paint.Style.STROKE);
         paint.setColor(Color.BLACK);
@@ -220,6 +247,7 @@ public class MapView extends View {
         trailX.add(x);
         trailY.add(y);
         invalidate();
+        Log.d(TAG, "Position updated: (" + x + ", " + y + ")");
     }
 
     public void updateOrientation(float[] orientation) {

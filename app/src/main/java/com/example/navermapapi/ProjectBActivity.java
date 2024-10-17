@@ -87,6 +87,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         initializeUI(); // UI 요소 초기화
         initializeSensors(); // 센서 초기화
         initializeBeaconManager(); // 비콘 매니저 초기화
+        initializeBuildingOutlineManager();
 
         for (int i = 0; i < 4; i++) {
             kalmanCovariance[i][i] = 1000;
@@ -136,10 +137,11 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     }
 
     private void initializeBuildingOutlineManager() {
-        BuildingOutlineManager buildingOutlineManager = new BuildingOutlineManager(null);  // NaverMap 객체가 없으므로 null 전달
+        BuildingOutlineManager buildingOutlineManager = new BuildingOutlineManager(null);
         List<LatLng> buildingCorners = buildingOutlineManager.getBuildingCorners();
         mapView.setBuildingCorners(buildingCorners);
         mapView.setShowBuildingOutline(true);
+        Log.d(TAG, "Building outline initialized with " + buildingCorners.size() + " corners");
     }
 
     private void toggleTracking() {
@@ -208,6 +210,8 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
                 trailY.clear();
                 trailX.add(positionX);
                 trailY.add(positionY);
+                mapView.updatePosition(positionX, positionY);
+                mapView.setShowBuildingOutline(true);
                 mapView.invalidate();
                 startStopButton.setText("추적 시작");
                 startStopButton.setEnabled(true);
