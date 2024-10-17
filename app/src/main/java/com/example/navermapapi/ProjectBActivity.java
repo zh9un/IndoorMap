@@ -4,10 +4,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
@@ -27,26 +23,17 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 
-public class ProjectBActivity extends AppCompatActivity implements SensorEventListener, BeaconLocationManager.LocationCallback {
+public class ProjectBActivity extends AppCompatActivity implements CustomSensorManager.SensorDataListener, BeaconLocationManager.LocationCallback {
 
     private static final String TAG = "ProjectBActivity";
     private float offsetAngle = (float) Math.PI;
     private AudioManager audioManager;
 
-    private SensorManager sensorManager;
-    private Sensor accelerometer, magnetometer, gyroscope, stepDetector;
-    private float[] accelerometerReading = new float[3];
-    private float[] magnetometerReading = new float[3];
-    private float[] gyroscopeReading = new float[3];
+    private CustomSensorManager customSensorManager;
     private float[] rotationMatrix = new float[9];
     private float[] orientationAngles = new float[3];
 
-    private double positionX = 0.0;
-    private double positionY = 0.0;
-    private float totalDistance = 0f;
-    private long lastStepTime = 0;
-    private long lastUpdateTime = 0;
-    private static final long UPDATE_INTERVAL = 50;
+    private PositionTracker positionTracker;
 
     private List<Double> trailX = new ArrayList<>();
     private List<Double> trailY = new ArrayList<>();
@@ -57,11 +44,10 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     private static final float ALPHA = 0.05f;
     private float[] filteredOrientation = new float[3];
 
-    private double[][] kalmanState = new double[][]{{0}, {0}, {0}, {0}}; // [x, y, vx, vy]
-    private double[][] kalmanCovariance = new double[4][4];
-    private static final double PROCESS_NOISE = 0.001;
-    private static final double MEASUREMENT_NOISE = 0.01;
-    private double stepLength = 0.75; // 초기 보폭 값 (m)
+    private long lastStepTime = 0;
+    private long lastUpdateTime = 0;
+    private static final long UPDATE_INTERVAL = 50;
+
     private DestinationManager destinationManager;
 
     private LinkedList<String> movementLogs = new LinkedList<>();
@@ -80,7 +66,6 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
     private BeaconLocationManager beaconLocationManager;
 
-    // 추가된 변수
     private double gpsLatitude = 0.0;
     private double gpsLongitude = 0.0;
 
@@ -88,30 +73,25 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_project_b);
-        destinationManager = new DestinationManager(this, 30.0); // 목적지까지 30m로 초기화
+        destinationManager = new DestinationManager(this, 30.0);
         audioManager = new AudioManager(this);
 
-        // remaining_steps_container를 찾아 DestinationManager에 전달
+        positionTracker = new PositionTracker();
+
         FrameLayout remainingStepsContainer = findViewById(R.id.remaining_steps_container);
         destinationManager.setRemainingStepsContainer(remainingStepsContainer);
 
-        initializeUI(); // UI 요소 초기화
-        initializeSensors(); // 센서 초기화
-        initializeBeaconManager(); // 비콘 매니저 초기화
+        initializeUI();
+        initializeSensors();
+        initializeBeaconManager();
         initializeBuildingOutlineManager();
 
-        for (int i = 0; i < 4; i++) {
-            kalmanCovariance[i][i] = 1000;
-        }
-
-        // 브로드캐스트 리시버 등록
         IntentFilter filter = new IntentFilter("com.example.navermapapi.LOCATION_UPDATE");
         registerReceiver(locationUpdateReceiver, filter);
 
-        // LocationTrackingService 시작
         startLocationTrackingService();
 
-        updateUI(); // UI 업데이트
+        updateUI();
         Log.d(TAG, "ProjectBActivity onCreate completed");
     }
 
@@ -130,23 +110,20 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
         startStopButton.setOnClickListener(v -> {
             if (!isInitialPositionSet) {
-                resetInitialPosition(); // 초기 위치 설정
+                resetInitialPosition();
             } else {
-                toggleTracking(); // 추적 시작/중지 토글
+                toggleTracking();
             }
         });
 
         resetInitialPositionButton.setOnClickListener(v -> resetInitialPosition());
         Button backToMainButton = findViewById(R.id.back_to_main_button);
-        backToMainButton.setOnClickListener(v -> finish()); // 메인 화면으로 돌아가기
+        backToMainButton.setOnClickListener(v -> finish());
     }
 
     private void initializeSensors() {
-        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
-        gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-        stepDetector = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR);
+        customSensorManager = new CustomSensorManager(this);
+        customSensorManager.setSensorDataListener(this);
     }
 
     private void initializeBeaconManager() {
@@ -164,9 +141,9 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
     private void toggleTracking() {
         if (isTracking) {
-            stopTracking(); // 추적 중지
+            stopTracking();
         } else {
-            startTracking(); // 추적 시작
+            startTracking();
         }
     }
 
@@ -174,7 +151,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         isTracking = true;
         isDataReliable = false;
         stepCount = 0;
-        registerSensors();
+        customSensorManager.registerListeners();
         startStopButton.setText("중지");
         statusView.setText("이동 수집 중...");
         statusView.setVisibility(View.VISIBLE);
@@ -183,7 +160,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
     private void stopTracking() {
         isTracking = false;
-        unregisterSensors();
+        customSensorManager.unregisterListeners();
         startStopButton.setText("시작");
         statusView.setVisibility(View.GONE);
         Log.d(TAG, "Tracking stopped");
@@ -199,118 +176,23 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         stopTracking();
     }
 
-    private void registerSensors() {
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(this, stepDetector, SensorManager.SENSOR_DELAY_NORMAL);
-        Log.d(TAG, "Sensors registered");
-    }
-
-    private void unregisterSensors() {
-        sensorManager.unregisterListener(this);
-        Log.d(TAG, "Sensors unregistered");
-    }
-
-    // 위치 업데이트 브로드캐스트 리시버
-    private BroadcastReceiver locationUpdateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (intent != null && intent.hasExtra("latitude") && intent.hasExtra("longitude")) {
-                gpsLatitude = intent.getDoubleExtra("latitude", 0.0);
-                gpsLongitude = intent.getDoubleExtra("longitude", 0.0);
-                handleLocationUpdate(gpsLatitude, gpsLongitude);
-            }
-        }
-    };
-
-    private void handleLocationUpdate(double latitude, double longitude) {
-        Log.d(TAG, "Received location update: " + latitude + ", " + longitude);
-
-        // GPS 위치 데이터를 현재 위치에 반영
-        positionX = latitude;
-        positionY = longitude;
-
-        // UI 업데이트
-        mapView.updatePosition(positionX, positionY);
-        mapView.invalidate();
-    }
-
     @Override
-    public void onLocationEstimated(double x, double y) {
-        if (!isInitialPositionSet) {
-            positionX = x;
-            positionY = y;
-            isInitialPositionSet = true;
-            statusView.setText("초기 위치 설정 완료");
-            statusView.setVisibility(View.GONE);
-            beaconLocationManager.stopBeaconScan();
-            resetInitialPositionButton.setEnabled(true);
-
-            runOnUiThread(() -> {
-                trailX.clear();
-                trailY.clear();
-                trailX.add(positionX);
-                trailY.add(positionY);
-                mapView.updatePosition(positionX, positionY);
-                mapView.setShowBuildingOutline(true);
-                mapView.invalidate();
-                startStopButton.setText("추적 시작");
-                startStopButton.setEnabled(true);
-            });
-        }
-    }
-
-    @Override
-    public void onLocationEstimationFailed() {
-        runOnUiThread(() -> {
-            statusView.setText("초기 위치 설정 실패. 기본 위치로 시작합니다.");
-            resetInitialPositionButton.setEnabled(true);
-
-            if (!isInitialPositionSet) {
-                positionX = 0.0;
-                positionY = 0.0;
-                isInitialPositionSet = true;
-
-                trailX.clear();
-                trailY.clear();
-                trailX.add(positionX);
-                trailY.add(positionY);
-
-                mapView.invalidate();
-
-                startTracking();
-            }
-            statusView.setVisibility(View.GONE);
-        });
-    }
-
-    @Override
-    public void onSensorChanged(SensorEvent event) {
+    public void onSensorDataChanged(float[] accelerometerData, float[] magnetometerData, float[] gyroscopeData) {
         if (!isTracking || !isInitialPositionSet) return;
 
-        switch (event.sensor.getType()) {
-            case Sensor.TYPE_ACCELEROMETER:
-                System.arraycopy(event.values, 0, accelerometerReading, 0, accelerometerReading.length);
-                break;
-            case Sensor.TYPE_MAGNETIC_FIELD:
-                System.arraycopy(event.values, 0, magnetometerReading, 0, magnetometerReading.length);
-                break;
-            case Sensor.TYPE_GYROSCOPE:
-                System.arraycopy(event.values, 0, gyroscopeReading, 0, gyroscopeReading.length);
-                break;
-            case Sensor.TYPE_STEP_DETECTOR:
-                updatePosition(); // 위치 업데이트
-                break;
-        }
-
-        updateOrientationAngles(); // 방향 각도 업데이트
+        updateOrientationAngles(accelerometerData, magnetometerData, gyroscopeData);
 
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastUpdateTime > UPDATE_INTERVAL) {
-            updateUI(); // UI 업데이트
+            updateUI();
             lastUpdateTime = currentTime;
         }
+    }
+
+    @Override
+    public void onStepDetected() {
+        if (!isTracking || !isInitialPositionSet) return;
+        updatePosition();
     }
 
     private void updatePosition() {
@@ -323,59 +205,29 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         if (!isDataReliable) return;
 
         long currentTime = System.currentTimeMillis();
-        float stepLength = PositionCalculator.calculateStepLength(accelerometerReading);
-        destinationManager.updateStepLength(stepLength);
+        float[] accelerometerReading = customSensorManager.getAccelerometerReading();
+        positionTracker.updateStepLength(accelerometerReading);
 
-        double stepX = stepLength * Math.sin(filteredOrientation[0]);
-        double stepY = stepLength * Math.cos(filteredOrientation[0]);
+        positionTracker.updatePosition(filteredOrientation, currentTime - lastStepTime);
 
-        double timeDelta = (currentTime - lastStepTime) / 1000.0;
+        double prevX = positionTracker.getPositionX();
+        double prevY = positionTracker.getPositionY();
 
-        double[][] F = {
-                {1, 0, timeDelta, 0},
-                {0, 1, 0, timeDelta},
-                {0, 0, 1, 0},
-                {0, 0, 0, 1}
-        };
-        kalmanState = PositionCalculator.matrixMultiply(F, kalmanState);
-        kalmanCovariance = PositionCalculator.matrixAdd(PositionCalculator.matrixMultiply(PositionCalculator.matrixMultiply(F, kalmanCovariance), PositionCalculator.transposeMatrix(F)),
-                PositionCalculator.scalarMultiply(PROCESS_NOISE, PositionCalculator.identityMatrix(4)));
+        trailX.add(prevX);
+        trailY.add(prevY);
 
-        double[][] H = {
-                {1, 0, 0, 0},
-                {0, 1, 0, 0}
-        };
-        double[][] measurement = {{positionX + stepX}, {positionY + stepY}};
-        double[][] y = PositionCalculator.matrixSubtract(measurement, PositionCalculator.matrixMultiply(H, kalmanState));
-        double[][] S = PositionCalculator.matrixAdd(PositionCalculator.matrixMultiply(PositionCalculator.matrixMultiply(H, kalmanCovariance), PositionCalculator.transposeMatrix(H)),
-                PositionCalculator.scalarMultiply(MEASUREMENT_NOISE, PositionCalculator.identityMatrix(2)));
-        double[][] K = PositionCalculator.matrixMultiply(PositionCalculator.matrixMultiply(kalmanCovariance, PositionCalculator.transposeMatrix(H)), PositionCalculator.inverseMatrix(S));
-        kalmanState = PositionCalculator.matrixAdd(kalmanState, PositionCalculator.matrixMultiply(K, y));
-        kalmanCovariance = PositionCalculator.matrixMultiply(PositionCalculator.matrixSubtract(PositionCalculator.identityMatrix(4), PositionCalculator.matrixMultiply(K, H)), kalmanCovariance);
-
-        double prevX = positionX;
-        double prevY = positionY;
-        positionX = kalmanState[0][0];
-        positionY = kalmanState[1][0];
-
-        totalDistance += stepLength;
-
-        trailX.add(positionX);
-        trailY.add(positionY);
-
-        addMovementLog(prevX, prevY, positionX, positionY, currentTime);
+        addMovementLog(prevX, prevY, positionTracker.getPositionX(), positionTracker.getPositionY(), currentTime);
 
         lastStepTime = currentTime;
-        mapView.updatePosition(positionX, positionY);
+        mapView.updatePosition(positionTracker.getPositionX(), positionTracker.getPositionY());
         mapView.setShowBuildingOutline(true);
         mapView.invalidate();
-        Log.d(TAG, "Step detected, new position: (" + positionX + ", " + positionY + ")");
     }
 
-    private void updateOrientationAngles() {
-        SensorManager.getRotationMatrix(rotationMatrix, null, accelerometerReading, magnetometerReading);
+    private void updateOrientationAngles(float[] accelerometerReading, float[] magnetometerReading, float[] gyroscopeReading) {
+        CustomSensorManager.getRotationMatrix(rotationMatrix, null, accelerometerReading, magnetometerReading);
         float[] orientation = new float[3];
-        SensorManager.getOrientation(rotationMatrix, orientation);
+        CustomSensorManager.getOrientation(rotationMatrix, orientation);
 
         float gyroRotationZ = gyroscopeReading[2];
         orientation[0] += gyroRotationZ * 0.02f;
@@ -388,10 +240,10 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     }
 
     private void updateUI() {
-        totalDistanceView.setText(String.format("총 이동 거리: %.2f m", totalDistance));
+        totalDistanceView.setText(String.format("총 이동 거리: %.2f m", positionTracker.getTotalDistance()));
         String direction = PositionCalculator.getCardinalDirection(filteredOrientation[0]);
         logView.setText(String.format("방향: %s (%.0f°)", direction, Math.toDegrees(filteredOrientation[0])));
-        destinationManager.updateRemainingSteps(positionX, positionY);
+        destinationManager.updateRemainingSteps(positionTracker.getPositionX(), positionTracker.getPositionY());
         int remainingSteps = destinationManager.getRemainingSteps();
         if (remainingSteps % 10 == 0 || remainingSteps <= 5) {
             audioManager.speak(String.format("목적지까지 %d 걸음 남았습니다.", remainingSteps));
@@ -427,15 +279,10 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     }
 
     @Override
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        // 센서 정확도 변경 시 처리 (현재는 구현하지 않음)
-    }
-
-    @Override
     protected void onResume() {
         super.onResume();
         if (isTracking) {
-            registerSensors();
+            customSensorManager.registerListeners();
         }
         Log.d(TAG, "Activity resumed");
     }
@@ -443,7 +290,7 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     @Override
     protected void onPause() {
         super.onPause();
-        unregisterSensors();
+        customSensorManager.unregisterListeners();
         beaconLocationManager.stopBeaconScan();
         Log.d(TAG, "Activity paused");
     }
@@ -464,5 +311,72 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         } else {
             startService(serviceIntent);
         }
+    }
+
+    @Override
+    public void onLocationEstimated(double x, double y) {
+        if (!isInitialPositionSet) {
+            positionTracker.setInitialPosition(x, y);
+            isInitialPositionSet = true;
+            statusView.setText("초기 위치 설정 완료");
+            statusView.setVisibility(View.GONE);
+            beaconLocationManager.stopBeaconScan();
+            resetInitialPositionButton.setEnabled(true);
+
+            runOnUiThread(() -> {
+                trailX.clear();
+                trailY.clear();
+                trailX.add(x);
+                trailY.add(y);
+                mapView.updatePosition(x, y);
+                mapView.setShowBuildingOutline(true);
+                mapView.invalidate();
+                startStopButton.setText("추적 시작");
+                startStopButton.setEnabled(true);
+            });
+        }
+    }
+
+    @Override
+    public void onLocationEstimationFailed() {
+        runOnUiThread(() -> {
+            statusView.setText("초기 위치 설정 실패. 기본 위치로 시작합니다.");
+            resetInitialPositionButton.setEnabled(true);
+
+            if (!isInitialPositionSet) {
+                positionTracker.setInitialPosition(0.0, 0.0);
+                isInitialPositionSet = true;
+
+                trailX.clear();
+                trailY.clear();
+                trailX.add(0.0);
+                trailY.add(0.0);
+
+                mapView.invalidate();
+
+                startTracking();
+            }
+            statusView.setVisibility(View.GONE);
+        });
+    }
+
+    private BroadcastReceiver locationUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent != null && intent.hasExtra("latitude") && intent.hasExtra("longitude")) {
+                gpsLatitude = intent.getDoubleExtra("latitude", 0.0);
+                gpsLongitude = intent.getDoubleExtra("longitude", 0.0);
+                handleLocationUpdate(gpsLatitude, gpsLongitude);
+            }
+        }
+    };
+
+    private void handleLocationUpdate(double latitude, double longitude) {
+        Log.d(TAG, "Received location update: " + latitude + ", " + longitude);
+
+        positionTracker.setInitialPosition(latitude, longitude);
+
+        mapView.updatePosition(latitude, longitude);
+        mapView.invalidate();
     }
 }
