@@ -91,6 +91,10 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         destinationManager = new DestinationManager(this, 30.0); // 목적지까지 30m로 초기화
         audioManager = new AudioManager(this);
 
+        // remaining_steps_container를 찾아 DestinationManager에 전달
+        FrameLayout remainingStepsContainer = findViewById(R.id.remaining_steps_container);
+        destinationManager.setRemainingStepsContainer(remainingStepsContainer);
+
         initializeUI(); // UI 요소 초기화
         initializeSensors(); // 센서 초기화
         initializeBeaconManager(); // 비콘 매니저 초기화
