@@ -1,6 +1,9 @@
 package com.example.navermapapi;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -17,11 +20,11 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.naver.maps.geometry.LatLng;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Locale;
 
 public class ProjectBActivity extends AppCompatActivity implements SensorEventListener, BeaconLocationManager.LocationCallback {
@@ -77,6 +80,10 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
 
     private BeaconLocationManager beaconLocationManager;
 
+    // 추가된 변수
+    private double gpsLatitude = 0.0;
+    private double gpsLongitude = 0.0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -92,6 +99,13 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
         for (int i = 0; i < 4; i++) {
             kalmanCovariance[i][i] = 1000;
         }
+
+        // 브로드캐스트 리시버 등록
+        IntentFilter filter = new IntentFilter("com.example.navermapapi.LOCATION_UPDATE");
+        registerReceiver(locationUpdateReceiver, filter);
+
+        // LocationTrackingService 시작
+        startLocationTrackingService();
 
         updateUI(); // UI 업데이트
         Log.d(TAG, "ProjectBActivity onCreate completed");
@@ -192,6 +206,30 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     private void unregisterSensors() {
         sensorManager.unregisterListener(this);
         Log.d(TAG, "Sensors unregistered");
+    }
+
+    // 위치 업데이트 브로드캐스트 리시버
+    private BroadcastReceiver locationUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent != null && intent.hasExtra("latitude") && intent.hasExtra("longitude")) {
+                gpsLatitude = intent.getDoubleExtra("latitude", 0.0);
+                gpsLongitude = intent.getDoubleExtra("longitude", 0.0);
+                handleLocationUpdate(gpsLatitude, gpsLongitude);
+            }
+        }
+    };
+
+    private void handleLocationUpdate(double latitude, double longitude) {
+        Log.d(TAG, "Received location update: " + latitude + ", " + longitude);
+
+        // GPS 위치 데이터를 현재 위치에 반영
+        positionX = latitude;
+        positionY = longitude;
+
+        // UI 업데이트
+        mapView.updatePosition(positionX, positionY);
+        mapView.invalidate();
     }
 
     @Override
@@ -409,8 +447,18 @@ public class ProjectBActivity extends AppCompatActivity implements SensorEventLi
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        unregisterReceiver(locationUpdateReceiver);
         beaconLocationManager.stopBeaconScan();
         audioManager.shutdown();
         Log.d(TAG, "Activity destroyed");
+    }
+
+    private void startLocationTrackingService() {
+        Intent serviceIntent = new Intent(this, LocationTrackingService.class);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
     }
 }
