@@ -1,4 +1,4 @@
 package com.example.navermapapi.coreModule.api.sensor.callback;
 
-public class SensorData {
+public class SensorCallback {
 }
