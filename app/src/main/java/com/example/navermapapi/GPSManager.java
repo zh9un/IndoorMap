@@ -7,7 +7,6 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.os.Looper;
 import android.util.Log;
 
 import androidx.core.app.ActivityCompat;
@@ -79,8 +78,8 @@ public class GPSManager {
                 Log.e(TAG, "위치 권한이 없습니다.");
                 return;
             }
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 100, 1, locationListener, Looper.getMainLooper());
-            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 100, 1, locationListener, Looper.getMainLooper());
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 100, 1, locationListener, null);
+            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 100, 1, locationListener, null);
         } catch (Exception e) {
             Log.e(TAG, "위치 업데이트 시작 중 오류 발생", e);
         }
@@ -144,39 +143,4 @@ public class GPSManager {
     public String getBuildingCoordinates() {
         return buildingLocationManager.getBuildingCoordinates();
     }
-
-    public interface LocationCallback {
-        void onLocationReceived(Location location);
-    }
-
-    public void getLastKnownLocation(LocationCallback callback) {
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Log.d(TAG, "GPS 권한이 부여되지 않았습니다.");
-            callback.onLocationReceived(null); // 권한 없을 때 null 반환
-            return;
-        }
-
-        // GPS 또는 네트워크 제공자로부터 위치 받아오기
-        locationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, new LocationListener() {
-            @Override
-            public void onLocationChanged(Location location) {
-                if (location != null) {
-                    callback.onLocationReceived(location); // 위치 받아오면 콜백 호출
-                } else {
-                    callback.onLocationReceived(null);
-                }
-            }
-
-            @Override
-            public void onStatusChanged(String provider, int status, Bundle extras) {}
-
-            @Override
-            public void onProviderEnabled(String provider) {}
-
-            @Override
-            public void onProviderDisabled(String provider) {}
-        }, Looper.getMainLooper());
-    }
-
 }
-

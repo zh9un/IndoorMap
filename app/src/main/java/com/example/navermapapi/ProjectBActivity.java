@@ -69,6 +69,9 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
     private double gpsLatitude = 0.0;
     private double gpsLongitude = 0.0;
 
+    private GPSManager gpsManager;
+    private LocationDataManager locationDataManager;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -83,7 +86,7 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
 
         initializeUI();
         initializeSensors();
-        initializeBeaconManager();
+        initializeManagers();
         initializeBuildingOutlineManager();
 
         IntentFilter filter = new IntentFilter("com.example.navermapapi.LOCATION_UPDATE");
@@ -91,6 +94,7 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
 
         startLocationTrackingService();
 
+        loadSavedLocationData();
         updateUI();
         Log.d(TAG, "ProjectBActivity onCreate completed");
     }
@@ -126,9 +130,11 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
         customSensorManager.setSensorDataListener(this);
     }
 
-    private void initializeBeaconManager() {
+    private void initializeManagers() {
         beaconLocationManager = new BeaconLocationManager(this, this);
-        Log.d(TAG, "BeaconLocationManager initialized");
+        gpsManager = new GPSManager(this);
+        locationDataManager = new LocationDataManager(this);
+        Log.d(TAG, "Managers initialized");
     }
 
     private void initializeBuildingOutlineManager() {
@@ -137,6 +143,18 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
         mapView.setBuildingCorners(buildingCorners);
         mapView.setShowBuildingOutline(true);
         Log.d(TAG, "Building outline initialized with " + buildingCorners.size() + " corners");
+    }
+
+    private void loadSavedLocationData() {
+        LocationDataManager.LocationData savedData = locationDataManager.loadLocationData();
+        if (savedData != null) {
+            positionTracker.setInitialPosition(savedData.latitude, savedData.longitude);
+            positionTracker.setTotalDistance((float) savedData.totalDistance);
+            isInitialPositionSet = true;
+            trailX.add(savedData.latitude);
+            trailY.add(savedData.longitude);
+            Log.d(TAG, "Loaded saved location data: (" + savedData.latitude + ", " + savedData.longitude + ")");
+        }
     }
 
     private void toggleTracking() {
@@ -152,6 +170,7 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
         isDataReliable = false;
         stepCount = 0;
         customSensorManager.registerListeners();
+        gpsManager.startLocationUpdates();
         startStopButton.setText("중지");
         statusView.setText("이동 수집 중...");
         statusView.setVisibility(View.VISIBLE);
@@ -161,6 +180,7 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
     private void stopTracking() {
         isTracking = false;
         customSensorManager.unregisterListeners();
+        gpsManager.stopLocationUpdates();
         startStopButton.setText("시작");
         statusView.setVisibility(View.GONE);
         Log.d(TAG, "Tracking stopped");
@@ -222,6 +242,10 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
         mapView.updatePosition(positionTracker.getPositionX(), positionTracker.getPositionY());
         mapView.setShowBuildingOutline(true);
         mapView.invalidate();
+
+        if (locationDataManager.shouldSaveData()) {
+            locationDataManager.saveLocationData(positionTracker.getPositionX(), positionTracker.getPositionY(), positionTracker.getTotalDistance());
+        }
     }
 
     private void updateOrientationAngles(float[] accelerometerReading, float[] magnetometerReading, float[] gyroscopeReading) {
@@ -283,6 +307,7 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
         super.onResume();
         if (isTracking) {
             customSensorManager.registerListeners();
+            gpsManager.startLocationUpdates();
         }
         Log.d(TAG, "Activity resumed");
     }
@@ -291,6 +316,7 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
     protected void onPause() {
         super.onPause();
         customSensorManager.unregisterListeners();
+        gpsManager.stopLocationUpdates();
         beaconLocationManager.stopBeaconScan();
         Log.d(TAG, "Activity paused");
     }
@@ -374,7 +400,10 @@ public class ProjectBActivity extends AppCompatActivity implements CustomSensorM
     private void handleLocationUpdate(double latitude, double longitude) {
         Log.d(TAG, "Received location update: " + latitude + ", " + longitude);
 
-        positionTracker.setInitialPosition(latitude, longitude);
+        if (!isInitialPositionSet) {
+            positionTracker.setInitialPosition(latitude, longitude);
+            isInitialPositionSet = true;
+        }
 
         mapView.updatePosition(latitude, longitude);
         mapView.invalidate();

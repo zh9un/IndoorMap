@@ -47,10 +47,12 @@ public class PositionTracker {
         kalmanState = PositionCalculator.matrixAdd(kalmanState, PositionCalculator.matrixMultiply(K, y));
         kalmanCovariance = PositionCalculator.matrixMultiply(PositionCalculator.matrixSubtract(PositionCalculator.identityMatrix(4), PositionCalculator.matrixMultiply(K, H)), kalmanCovariance);
 
+        double prevX = positionX;
+        double prevY = positionY;
         positionX = kalmanState[0][0];
         positionY = kalmanState[1][0];
 
-        totalDistance += stepLength;
+        totalDistance += Math.sqrt(Math.pow(positionX - prevX, 2) + Math.pow(positionY - prevY, 2));
 
         Log.d(TAG, "Step detected, new position: (" + positionX + ", " + positionY + ")");
     }
@@ -76,5 +78,10 @@ public class PositionTracker {
 
     public float getTotalDistance() {
         return totalDistance;
+    }
+
+    // 새로 추가된 메서드
+    public void setTotalDistance(float distance) {
+        this.totalDistance = distance;
     }
 }
