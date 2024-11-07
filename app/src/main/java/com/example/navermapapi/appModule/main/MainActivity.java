@@ -33,11 +33,14 @@ public class MainActivity extends AppCompatActivity {
     private Button startTrackingButton;
     private Button stopTrackingButton;
 
+    // 필요한 권한 배열
     private final String[] REQUIRED_PERMISSIONS = {
             Manifest.permission.BLUETOOTH,
             Manifest.permission.BLUETOOTH_ADMIN,
             Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACTIVITY_RECOGNITION
+            Manifest.permission.ACTIVITY_RECOGNITION,
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT
     };
 
     @Override
