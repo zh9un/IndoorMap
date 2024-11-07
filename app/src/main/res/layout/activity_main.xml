@@ -44,6 +44,17 @@
         android:layout_marginStart="16dp"
         android:layout_marginTop="16dp" />
 
+    <!-- Project C 시작 버튼 (새로 추가) -->
+    <Button
+        android:id="@+id/start_project_c_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Project C 시작"
+        android:layout_below="@id/current_location_btn"
+        android:layout_alignParentStart="true"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp" />
+
     <!-- 건물 모서리 좌표를 표시할 TextView -->
     <TextView
         android:id="@+id/building_corner_coordinates"

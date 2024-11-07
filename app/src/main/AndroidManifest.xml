@@ -60,6 +60,10 @@
             android:foregroundServiceType="location"
             android:exported="false"
             tools:ignore="ForegroundServicePermission" />
+
+        <activity
+            android:name=".projectC.IndoorMapActivity"
+            android:exported="false" />
     </application>
 
 </manifest>
