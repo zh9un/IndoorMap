@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/outdoorMapFragment">
+
+    <fragment
+        android:id="@+id/outdoorMapFragment"
+        android:name="com.example.navermapapi.appModule.outdoor.OutdoorMapFragment"
+        android:label="OutdoorMapFragment">
+        <action
+            android:id="@+id/action_outdoorMap_to_indoorMap"
+            app:destination="@id/indoorMapFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/indoorMapFragment"
+        android:name="com.example.navermapapi.appModule.indoor.IndoorMapFragment"
+        android:label="IndoorMapFragment">
+        <action
+            android:id="@+id/action_indoorMap_to_outdoorMap"
+            app:destination="@id/outdoorMapFragment" />
+    </fragment>
+
+</navigation>

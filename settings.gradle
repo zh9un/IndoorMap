@@ -1,25 +1,21 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
 }
+
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
         mavenCentral()
-        maven { url "https://repository.map.naver.com/archive/maven" }
+        maven {
+            url 'https://repository.map.naver.com/archive/maven'
+        }
     }
 }
 
-
-rootProject.name = "navermapapi"
+rootProject.name = "IndoorMap"
 include ':app'

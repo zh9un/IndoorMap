@@ -1,7 +1,6 @@
 package com.example.navermapapi.coreModule.api.location.model;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 
 public class LocationData {
@@ -72,6 +71,19 @@ public class LocationData {
         public Builder(double latitude, double longitude) {
             this.latitude = latitude;
             this.longitude = longitude;
+        }
+
+        // 새로운 생성자 추가: LocationData 객체를 받아서 필드 복사
+        public Builder(@NonNull LocationData locationData) {
+            this.latitude = locationData.getLatitude();
+            this.longitude = locationData.getLongitude();
+            this.accuracy = locationData.getAccuracy();
+            this.altitude = locationData.getAltitude();
+            this.bearing = locationData.getBearing();
+            this.speed = locationData.getSpeed();
+            this.environment = locationData.getEnvironment();
+            this.provider = locationData.getProvider();
+            this.confidence = locationData.getConfidence();
         }
 
         public Builder accuracy(float accuracy) {

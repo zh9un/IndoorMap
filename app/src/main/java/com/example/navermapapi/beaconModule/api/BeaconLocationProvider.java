@@ -7,74 +7,93 @@ import androidx.annotation.Nullable;
 import androidx.annotation.MainThread;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 
 import com.example.navermapapi.beaconModule.internal.pdr.StepDetector;
 import com.example.navermapapi.beaconModule.internal.pdr.OrientationCalculator;
+import com.example.navermapapi.beaconModule.internal.beacon.BeaconScanner;
+import com.example.navermapapi.beaconModule.internal.positioning.PositionCalculator;
 import com.example.navermapapi.coreModule.api.location.model.LocationData;
 import com.example.navermapapi.coreModule.api.location.callback.LocationCallback;
 import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
-import com.example.navermapapi.coreModule.api.location.callback.LocationCallback.LocationError;
 
-/**
- * BeaconLocationProvider
- *
- * PDR(Pedestrian Dead Reckoning) 기반 실내 위치 추적 구현
- * 시각 장애인의 정확한 실내 위치 추적을 위해 최적화됨
- */
+@Singleton
 public class BeaconLocationProvider {
     private static final String TAG = "BeaconLocationProvider";
-
-    // 위치 업데이트 최소 간격 (밀리초)
     private static final long MIN_UPDATE_INTERVAL = 100;
-
-    // 위치 정확도 관련 상수
     private static final float BASE_ACCURACY = 1.0f;
-    private static final float MAX_ACCURACY = 10.0f;
-    private static final float ACCURACY_PER_STEP = 0.1f;
-
-    // 좌표 변환 상수
     private static final double EARTH_RADIUS = 6371000;
 
     private final Context context;
-    private final StepDetector stepDetector;
-    private final OrientationCalculator orientationCalculator;
     private final List<LocationCallback> callbacks;
+    private final AtomicBoolean isTracking;
+    private volatile boolean isInitialized = false;
 
-    // 현재 위치 정보
+    // 지연 초기화를 위한 필드들
+    private StepDetector stepDetector;
+    private OrientationCalculator orientationCalculator;
+    private BeaconScanner beaconScanner;
+    private PositionCalculator positionCalculator;
+
+    private LocationData initialLocation;
+    private long lastUpdateTime;
     private double currentX;
     private double currentY;
-    private final AtomicBoolean isTracking;
 
-    // 초기 위치 설정
-    private LocationData initialLocation;
-    private boolean isInitialized;
-    private long lastUpdateTime;
-
+    @Inject
     public BeaconLocationProvider(@NonNull Context context) {
         this.context = context.getApplicationContext();
-        this.callbacks = new ArrayList<>();
+        this.callbacks = new CopyOnWriteArrayList<>();
         this.isTracking = new AtomicBoolean(false);
+    }
 
-        this.stepDetector = new StepDetector(context);
-        this.orientationCalculator = new OrientationCalculator(context);
+    public void initialize() {
+        if (isInitialized) {
+            Log.d(TAG, "Already initialized");
+            return;
+        }
 
-        setupCallbacks();
-        initializeErrorHandling();
+        try {
+            // 컴포넌트 초기화
+            this.stepDetector = new StepDetector(context);
+            this.orientationCalculator = new OrientationCalculator(context);
+            this.beaconScanner = new BeaconScanner(context);
+            this.positionCalculator = new PositionCalculator();
+
+            // 콜백 설정
+            setupCallbacks();
+
+            isInitialized = true;
+            Log.d(TAG, "BeaconLocationProvider initialized successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "Error initializing BeaconLocationProvider", e);
+            isInitialized = false;
+            throw e;
+        }
     }
 
     private void setupCallbacks() {
+        if (!isInitialized) {
+            Log.w(TAG, "Cannot setup callbacks before initialization");
+            return;
+        }
+
+        // 걸음 감지 콜백
         stepDetector.addStepCallback((stepLength, totalSteps) -> {
-            if (isInitialized && shouldUpdateLocation()) {
+            if (shouldUpdateLocation()) {
                 updatePosition(stepLength);
                 lastUpdateTime = System.currentTimeMillis();
             }
         });
 
+        // 방향 변화 콜백
         orientationCalculator.addOrientationCallback(new OrientationCalculator.OrientationCallback() {
             @Override
             public void onOrientationChanged(float azimuth) {
-                if (isInitialized && shouldUpdateLocation()) {
+                if (shouldUpdateLocation()) {
                     LocationData location = calculateAbsoluteLocation();
                     if (location != null) {
                         notifyLocationChanged(location);
@@ -85,40 +104,49 @@ public class BeaconLocationProvider {
 
             @Override
             public void onCalibrationComplete(float initialAzimuth) {
-                if (!isInitialized && initialLocation != null) {
+                if (initialLocation != null) {
                     initializePosition();
+                }
+            }
+        });
+
+        // 비콘 스캔 콜백
+        beaconScanner.addScanCallback(beacons -> {
+            if (isInitialized) {
+                double[] position = positionCalculator.calculatePosition(beacons);
+                if (position != null) {
+                    updatePositionWithBeacon(position[0], position[1]);
                 }
             }
         });
     }
 
-    private void initializeErrorHandling() {
-        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-            Log.e(TAG, "Uncaught exception in " + thread.getName(), throwable);
-            stopTracking();
-            notifyError(LocationError.PDR_CALIBRATION_NEEDED);
-        });
-    }
-
     private boolean shouldUpdateLocation() {
-        return System.currentTimeMillis() - lastUpdateTime >= MIN_UPDATE_INTERVAL;
+        return isInitialized &&
+                (System.currentTimeMillis() - lastUpdateTime >= MIN_UPDATE_INTERVAL);
     }
 
     private void updatePosition(float stepLength) {
-        try {
-            float azimuth = orientationCalculator.getCurrentAzimuth();
-            double angle = Math.toRadians(azimuth);
+        float azimuth = orientationCalculator.getCurrentAzimuth();
+        double angle = Math.toRadians(azimuth);
 
-            currentX += stepLength * Math.sin(angle);
-            currentY += stepLength * Math.cos(angle);
+        currentX += stepLength * Math.sin(angle);
+        currentY += stepLength * Math.cos(angle);
 
-            LocationData newLocation = calculateAbsoluteLocation();
-            if (newLocation != null) {
-                notifyLocationChanged(newLocation);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error updating position", e);
-            notifyError(LocationError.PDR_CALIBRATION_NEEDED);
+        LocationData newLocation = calculateAbsoluteLocation();
+        if (newLocation != null) {
+            notifyLocationChanged(newLocation);
+        }
+    }
+
+    private void updatePositionWithBeacon(double x, double y) {
+        double weight = 0.3; // 비콘 위치의 가중치
+        currentX = (1 - weight) * currentX + weight * x;
+        currentY = (1 - weight) * currentY + weight * y;
+
+        LocationData newLocation = calculateAbsoluteLocation();
+        if (newLocation != null) {
+            notifyLocationChanged(newLocation);
         }
     }
 
@@ -126,59 +154,60 @@ public class BeaconLocationProvider {
     private LocationData calculateAbsoluteLocation() {
         if (initialLocation == null) return null;
 
-        try {
-            double lat = initialLocation.getLatitude();
-            double lng = initialLocation.getLongitude();
+        double lat = initialLocation.getLatitude();
+        double lng = initialLocation.getLongitude();
 
-            double dLat = Math.toDegrees(currentY / EARTH_RADIUS);
-            double dLng = Math.toDegrees(currentX / (EARTH_RADIUS * Math.cos(Math.toRadians(lat))));
+        double dLat = Math.toDegrees(currentY / EARTH_RADIUS);
+        double dLng = Math.toDegrees(currentX /
+                (EARTH_RADIUS * Math.cos(Math.toRadians(lat))));
 
-            float bearing = (float) Math.toDegrees(Math.atan2(currentX, currentY));
-            if (bearing < 0) bearing += 360;
-
-            return new LocationData.Builder(lat + dLat, lng + dLng)
-                    .accuracy(calculateAccuracy())
-                    .bearing(bearing)
-                    .environment(EnvironmentType.INDOOR)
-                    .provider("PDR")
-                    .confidence(calculateConfidence())
-                    .build();
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error calculating absolute location", e);
-            return null;
-        }
+        return new LocationData.Builder(lat + dLat, lng + dLng)
+                .accuracy(calculateAccuracy())
+                .bearing(orientationCalculator.getCurrentAzimuth())
+                .environment(EnvironmentType.INDOOR)
+                .provider("PDR")
+                .build();
     }
 
     private float calculateAccuracy() {
-        int stepCount = stepDetector.getStepCount();
-        return Math.min(BASE_ACCURACY + (stepCount * ACCURACY_PER_STEP), MAX_ACCURACY);
-    }
-
-    private float calculateConfidence() {
-        float accuracy = calculateAccuracy();
-        return Math.max(0, 1 - (accuracy / MAX_ACCURACY));
+        return Math.min(BASE_ACCURACY + (stepDetector.getStepCount() * 0.1f), 10.0f);
     }
 
     public void startTracking() {
+        if (!isInitialized) {
+            Log.e(TAG, "Cannot start tracking before initialization");
+            return;
+        }
+
         if (!isTracking.getAndSet(true)) {
-            orientationCalculator.calibrate();
-            notifyProviderStateChanged("PDR", true);
-            Log.i(TAG, "Started PDR tracking");
+            try {
+                orientationCalculator.calibrate();
+                beaconScanner.startScanning();
+                notifyProviderStateChanged("PDR", true);
+            } catch (Exception e) {
+                Log.e(TAG, "Error starting tracking", e);
+                isTracking.set(false);
+                throw e;
+            }
         }
     }
 
     public void stopTracking() {
         if (isTracking.getAndSet(false)) {
-            resetTracking();
-            notifyProviderStateChanged("PDR", false);
-            Log.i(TAG, "Stopped PDR tracking");
+            try {
+                beaconScanner.stopScanning();
+                resetTracking();
+                notifyProviderStateChanged("PDR", false);
+            } catch (Exception e) {
+                Log.e(TAG, "Error stopping tracking", e);
+                throw e;
+            }
         }
     }
 
     public void setInitialLocation(@NonNull LocationData location) {
         this.initialLocation = location;
-        if (!isInitialized && orientationCalculator.isCalibrated()) {
+        if (isInitialized && orientationCalculator.isCalibrated()) {
             initializePosition();
         }
     }
@@ -186,75 +215,60 @@ public class BeaconLocationProvider {
     private void initializePosition() {
         currentX = 0;
         currentY = 0;
-        isInitialized = true;
         lastUpdateTime = System.currentTimeMillis();
         notifyLocationChanged(initialLocation);
-        Log.i(TAG, "Initialized PDR tracking position");
     }
 
     private void resetTracking() {
         currentX = 0;
         currentY = 0;
-        isInitialized = false;
         lastUpdateTime = 0;
-        stepDetector.destroy();
-        orientationCalculator.destroy();
-    }
 
-    @Nullable
-    public LocationData getLastLocation() {
-        return calculateAbsoluteLocation();
+        if (stepDetector != null) stepDetector.destroy();
+        if (orientationCalculator != null) orientationCalculator.destroy();
+        if (beaconScanner != null) beaconScanner.stopScanning();
     }
 
     public void registerLocationCallback(@NonNull LocationCallback callback) {
-        if (!callbacks.contains(callback)) {
-            callbacks.add(callback);
-        }
+        callbacks.add(callback);
     }
 
     public void unregisterLocationCallback(@NonNull LocationCallback callback) {
         callbacks.remove(callback);
     }
 
-    @MainThread
     private void notifyLocationChanged(@NonNull LocationData location) {
         for (LocationCallback callback : callbacks) {
-            callback.onLocationUpdate(location);
+            try {
+                callback.onLocationUpdate(location);
+            } catch (Exception e) {
+                Log.e(TAG, "Error notifying location callback", e);
+            }
         }
     }
 
-    @MainThread
     private void notifyProviderStateChanged(@NonNull String provider, boolean enabled) {
         for (LocationCallback callback : callbacks) {
-            callback.onProviderStateChanged(provider, enabled);
+            try {
+                callback.onProviderStateChanged(provider, enabled);
+            } catch (Exception e) {
+                Log.e(TAG, "Error notifying provider state callback", e);
+            }
         }
     }
 
-    @MainThread
-    private void notifyError(@NonNull LocationError error) {
-        for (LocationCallback callback : callbacks) {
-            callback.onError(error);
-        }
+    public void cleanup() {
+        stopTracking();
+        resetTracking();
+        callbacks.clear();
+        isInitialized = false;
+    }
+
+    public boolean isInitialized() {
+        return isInitialized;
     }
 
     public boolean isTracking() {
         return isTracking.get();
-    }
-
-    @NonNull
-    public String getTrackingStatus() {
-        StringBuilder status = new StringBuilder();
-        status.append("PDR Tracking Status:\n");
-        status.append("Initialized: ").append(isInitialized).append("\n");
-        status.append("Tracking: ").append(isTracking.get()).append("\n");
-        status.append("Steps: ").append(stepDetector.getStepCount()).append("\n");
-        status.append("Heading: ").append(
-                String.format("%.1f", orientationCalculator.getCurrentAzimuth())
-        ).append("°\n");
-        status.append("Relative X: ").append(String.format("%.2f", currentX)).append("m\n");
-        status.append("Relative Y: ").append(String.format("%.2f", currentY)).append("m\n");
-        status.append("Accuracy: ").append(String.format("%.1f", calculateAccuracy())).append("m\n");
-        status.append("Confidence: ").append(String.format("%.2f", calculateConfidence())).append("\n");
-        return status.toString();
     }
 }

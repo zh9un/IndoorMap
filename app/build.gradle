@@ -1,5 +1,6 @@
 plugins {
-    alias(libs.plugins.android.application)
+    id 'com.android.application'
+    id 'dagger.hilt.android.plugin'
 }
 
 android {
@@ -22,6 +23,11 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    buildFeatures {
+        viewBinding true
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -29,25 +35,36 @@ android {
 }
 
 dependencies {
-    // 기존 의존성
-    implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'com.google.android.material:material:1.5.0'
-    implementation 'androidx.appcompat:appcompat:1.4.1'
-    implementation 'androidx.core:core:1.7.0'
-    implementation libs.appcompat
-    implementation libs.material
-    implementation libs.activity
-    implementation libs.constraintlayout
-    implementation ('com.naver.maps:map-sdk:3.14.0') {
-        exclude group: 'com.android.support', module: 'support-v4'
-    }
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    // Hilt
+    implementation "com.google.dagger:hilt-android:2.48"
+    annotationProcessor "com.google.dagger:hilt-compiler:2.48"
 
-    // Beacon Module 필요 의존성
+    // AndroidX
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation "androidx.navigation:navigation-fragment:2.7.5"
+    implementation "androidx.navigation:navigation-ui:2.7.5"
+    implementation 'androidx.preference:preference:1.2.1'
+
+    // Material Design
+    implementation 'com.google.android.material:material:1.10.0'
+
+    // Google Play Services
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
+    implementation 'com.google.android.gms:play-services-maps:18.2.0'
+
+    // Naver Map
+    implementation 'com.naver.maps:map-sdk:3.19.1'
+
+    // Beacon Module
     implementation 'org.altbeacon:android-beacon-library:2.19.4'
     implementation 'org.apache.commons:commons-math3:3.6.1'
 
-    testImplementation libs.junit
-    androidTestImplementation libs.ext.junit
-    androidTestImplementation libs.espresso.core
+    // Test dependencies
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }

@@ -1,3 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">navermapapi</string>
+    <string name="app_name">실내외 내비게이션</string>
+    <string name="location_permission_required">위치 권한이 필요합니다</string>
+    <string name="settings">설정</string>
+    <string name="cancel">취소</string>
+    <string name="indoor_navigation">실내 내비게이션</string>
+    <string name="outdoor_navigation">실외 내비게이션</string>
+    <string name="current_location">현재 위치</string>
+    <string name="distance_to_exhibition">전시장까지 거리</string>
+    <string name="announce_current_location">현재 위치 음성 안내</string>
+    <string name="distance_status_format">전시장까지 거리: %dm</string>
+    <string name="tts_initialization_failed">음성 안내 초기화 실패</string>
+    <string name="location_status_format">위치: %.6f, %.6f</string>
+    <string name="error_title">오류</string>
+    <string name="action_outdoorMap_to_indoorMap">실내 지도로 전환</string>
+    <string name="action_indoorMap_to_outdoorMap">실외 지도로 전환</string>
+    <string name="fatal_error">심각한 오류</string>
+    <string name="fatal_error_message">앱에 오류가 발생했습니다: %1$s</string>
+    <string name="permission_permanently_denied_message">앱 사용을 위해서는 설정에서 권한을 직접 허용해주셔야 합니다.</string>
+    <string name="exit">종료</string>
+    <string name="location_format">위도: %.6f, 경도: %.6f</string>
+    <string name="navigation_error">내비게이션 중 오류가 발생했습니다.</string>
+    <string name="initialization_error">초기화 중 오류가 발생했습니다.</string>
+    <string name="try_again">다시 시도</string>
+    <string name="permission_required_message">이 기능을 사용하려면 권한이 필요합니다.</string>
+    <string name="permissions_permanently_denied_message">설정에서 권한을 직접 허용해야 합니다.</string>
 </resources>
