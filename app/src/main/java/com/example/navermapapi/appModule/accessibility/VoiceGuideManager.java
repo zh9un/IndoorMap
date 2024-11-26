@@ -82,8 +82,7 @@ public class VoiceGuideManager implements TextToSpeech.OnInitListener {
         message.append(CLOCK_DIRECTIONS[clockPosition])
                 .append(" 방향으로 이동 중입니다. ");
 
-        // distanceFromStart 대신 현재 위치의 다른 정보를 사용
-        if (location.getAccuracy() <= 10.0f) {  // 정확도가 높을 때만 위치 정보 제공
+        if (location.getAccuracy() <= 10.0f) {
             message.append("현재 속도는 ")
                     .append(String.format("%.1f", location.getSpeed()))
                     .append("m/s 입니다.");
@@ -136,7 +135,7 @@ public class VoiceGuideManager implements TextToSpeech.OnInitListener {
         return currentTime - lastAnnouncementTime >= MIN_ANNOUNCEMENT_INTERVAL;
     }
 
-    private void announce(String message) {
+    public void announce(String message) {  // 접근 제어자 수정
         announce(message, false);
     }
 

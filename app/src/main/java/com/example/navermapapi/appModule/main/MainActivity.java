@@ -430,4 +430,14 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
         }
         getLifecycle().removeObserver(this);
     }
+
+    public void announceVoiceGuide(String message) {
+        if (voiceGuideManager != null) {
+            voiceGuideManager.announce(message);
+        } else {
+            Log.w(TAG, "VoiceGuideManager is not initialized.");
+        }
+    }
+
+
 }
