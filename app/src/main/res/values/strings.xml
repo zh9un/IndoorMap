@@ -25,4 +25,19 @@
     <string name="try_again">다시 시도</string>
     <string name="permission_required_message">이 기능을 사용하려면 권한이 필요합니다.</string>
     <string name="permissions_permanently_denied_message">설정에서 권한을 직접 허용해야 합니다.</string>
+
+    <!-- 권한 관련 -->
+
+    <!-- 버튼 텍스트 -->
+
+    <string name="indoor_voice_guide">실내 음성 안내</string>
+    <string name="set_destination">목적지 설정</string>
+    <string name="start_navigation">안내 시작</string>
+
+    <!-- 내비게이션 관련 -->
+
+    <!-- 다이얼로그 -->
+
+    <!-- 버튼 -->
+
 </resources>

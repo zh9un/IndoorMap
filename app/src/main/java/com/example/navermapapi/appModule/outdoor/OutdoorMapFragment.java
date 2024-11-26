@@ -8,6 +8,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.navigation.NavController;
+import androidx.navigation.fragment.NavHostFragment;
 
 import com.example.navermapapi.R;
 import com.example.navermapapi.appModule.main.MainViewModel;
@@ -213,11 +215,9 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     private void navigateToIndoorMap() {
-        // Navigation Component를 통한 화면 전환
-        // navigation/nav_graph.xml에 정의된 action을 사용
-        // NavController navController = NavHostFragment.findNavController(this);
-        // navController.navigate(R.id.action_outdoorMap_to_indoorMap);
-    }
+        NavController navController = NavHostFragment.findNavController(this);
+        navController.navigate(R.id.action_outdoorMap_to_indoorMap);
+   }
 
     @Override
     public void onDestroyView() {

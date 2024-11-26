@@ -7,19 +7,27 @@
     <fragment
         android:id="@+id/outdoorMapFragment"
         android:name="com.example.navermapapi.appModule.outdoor.OutdoorMapFragment"
-        android:label="OutdoorMapFragment">
+        android:label="실외 지도">
         <action
             android:id="@+id/action_outdoorMap_to_indoorMap"
-            app:destination="@id/indoorMapFragment" />
+            app:destination="@id/indoorMapFragment"
+            app:enterAnim="@anim/nav_default_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim"
+            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
     </fragment>
 
     <fragment
         android:id="@+id/indoorMapFragment"
         android:name="com.example.navermapapi.appModule.indoor.IndoorMapFragment"
-        android:label="IndoorMapFragment">
+        android:label="실내 지도">
         <action
             android:id="@+id/action_indoorMap_to_outdoorMap"
-            app:destination="@id/outdoorMapFragment" />
+            app:destination="@id/outdoorMapFragment"
+            app:enterAnim="@anim/nav_default_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim"
+            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
     </fragment>
 
 </navigation>

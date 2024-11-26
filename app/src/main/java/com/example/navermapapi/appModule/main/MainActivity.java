@@ -23,6 +23,8 @@ import androidx.navigation.NavController;
 import androidx.navigation.NavDestination;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.preference.PreferenceManager;
+
+import com.example.navermapapi.appModule.indoor.IndoorMapFragment;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 
@@ -69,6 +71,7 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
         try {
             if (!checkGooglePlayServices()) {
                 return;
@@ -81,6 +84,13 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
         } catch (Exception e) {
             Log.e(TAG, "Error during initialization", e);
             showFatalErrorDialog(e);
+        }
+
+        if (savedInstanceState == null) {
+            getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.nav_host_fragment, new IndoorMapFragment())
+                    .commit();
         }
     }
 
@@ -160,6 +170,10 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
         binding.voiceGuideButton.setContentDescription(
                 getString(R.string.announce_current_location)
         );
+
+        binding.testOutdoorButton.setOnClickListener(v -> {
+            viewModel.setTestEnvironment(EnvironmentType.OUTDOOR); // 실외 상태 전송
+        });
     }
 
     private void setupObservers() {
@@ -169,31 +183,80 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     }
 
     private void updateLocationUI(@Nullable LocationData location) {
-        if (location == null) return;
+        if (location == null) {
+            Log.d(TAG, "updateLocationUI: 위치 데이터가 null입니다. UI를 업데이트하지 않습니다.");
+            return;
+        }
+
         try {
+            Log.d(TAG, String.format(
+                    "updateLocationUI: 위치 데이터 수신 - 위도: %.6f, 경도: %.6f",
+                    location.getLatitude(), location.getLongitude()));
+
+            // UI 업데이트
             binding.locationStatus.setText(getString(R.string.location_format,
                     location.getLatitude(), location.getLongitude()));
+
+            Log.d(TAG, String.format(
+                    "updateLocationUI: UI 업데이트 완료 - 현재 위치: 위도 %.2f도, 경도 %.2f도",
+                    location.getLatitude(), location.getLongitude()));
+
+            // TalkBack 접근성 설명 설정
             binding.locationStatus.setContentDescription(
-                    String.format("현재 위치는 위도 %.2f도, 경도 %.2f도 입니다.",
-                            location.getLatitude(), location.getLongitude())
-            );
+                    String.format("현재 위치는 위도 %.2f도, 경도 %.2f도입니다.",
+                            location.getLatitude(), location.getLongitude()));
+
         } catch (Exception e) {
-            Log.e(TAG, "Error updating location UI", e);
+            Log.e(TAG, "updateLocationUI: 위치 UI 업데이트 중 오류 발생", e);
         }
     }
 
+
     private void handleEnvironmentUpdate(@Nullable EnvironmentType environment) {
-        if (environment == null) return;
-        updateEnvironmentUI(environment);
-        handleEnvironmentChange(environment);
+        Log.d(TAG, "handleEnvironmentUpdate: 환경 업데이트 수신: " + environment);
+        if (environment == null) {
+            Log.d(TAG, "handleEnvironmentUpdate: 환경 데이터가 null입니다.");
+            return;
+        }
+
+        try {
+            switch (environment) {
+                case INDOOR:
+                    Log.d(TAG, "handleEnvironmentUpdate: 실내 환경으로 전환. IndoorMapFragment로 이동합니다.");
+                    navController.navigate(R.id.indoorMapFragment);
+                    break;
+                case OUTDOOR:
+                    Log.d(TAG, "handleEnvironmentUpdate: 실외 환경으로 전환. OutdoorMapFragment로 이동합니다.");
+                    navController.navigate(R.id.outdoorMapFragment);
+                    break;
+                default:
+                    Log.w(TAG, "handleEnvironmentUpdate: 처리되지 않은 환경 상태입니다: " + environment);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "handleEnvironmentUpdate: 환경 업데이트 처리 중 오류 발생: " + e.getMessage(), e);
+        }
     }
 
+
     private void updateEnvironmentUI(EnvironmentType environment) {
-        binding.environmentStatus.setText(environment.getDescription());
-        binding.environmentStatus.setContentDescription(
-                String.format("현재 환경은 %s입니다.", environment.getDescription())
-        );
+        Log.d(TAG, "updateEnvironmentUI: 환경 상태 수신: " + environment);
+
+        try {
+            // UI 업데이트
+            binding.environmentStatus.setText(environment.getDescription());
+            Log.d(TAG, "updateEnvironmentUI: UI 텍스트 업데이트 완료 - 환경 상태: " + environment.getDescription());
+
+            // TalkBack 접근성 설명 설정
+            binding.environmentStatus.setContentDescription(
+                    String.format("현재 환경은 %s입니다.", environment.getDescription()));
+
+            Log.d(TAG, "updateEnvironmentUI: 접근성 설명 업데이트 완료 - 설명: " + environment.getDescription());
+
+        } catch (Exception e) {
+            Log.e(TAG, "updateEnvironmentUI: 환경 상태 UI 업데이트 중 오류 발생", e);
+        }
     }
+
 
     private void handleEnvironmentChange(EnvironmentType environment) {
         if (isNavigating) return;

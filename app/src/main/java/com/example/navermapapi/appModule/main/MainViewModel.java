@@ -80,4 +80,10 @@ public class MainViewModel extends ViewModel {
     public void stopTracking() {
         // 위치 추적 중지 로직
     }
+
+    // test로 실내외 수동으로 바꿈
+    public void setTestEnvironment(EnvironmentType environment) {
+        currentEnvironment.setValue(environment);
+    }
+
 }
