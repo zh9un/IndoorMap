@@ -25,8 +25,8 @@ public class GpsManager {
     private static final String TAG = "GpsManager";
 
     // 최소 업데이트 간격 및 거리
-    private static final float MIN_DISTANCE = 1.0f;  // 미터
-    private static final long MIN_TIME = 100L;       // 밀리초
+    private static final float MIN_DISTANCE = 0.1f;  // 미터
+    private static final long MIN_TIME = 16L;       // 밀리초
 
     private final Context context;
     private final LocationManager locationManager;
@@ -96,11 +96,19 @@ public class GpsManager {
             try {
                 locationManager.requestLocationUpdates(
                         LocationManager.GPS_PROVIDER,
-                        Math.max(MIN_TIME, interval),
+                        Math.max(MIN_TIME, interval / 2),
                         MIN_DISTANCE,
                         locationListener,
                         Looper.getMainLooper()
                 );
+                locationManager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        Math.max(MIN_TIME, interval / 2),
+                        MIN_DISTANCE,
+                        locationListener,
+                        Looper.getMainLooper()
+                );
+
             } catch (SecurityException e) {
                 isUpdating.set(false);
                 // 권한 관련 예외 처리
@@ -125,7 +133,7 @@ public class GpsManager {
 
     private void handleLocationUpdate(@NonNull Location location) {
         // 정확도가 너무 낮은 위치는 무시
-        if (location.getAccuracy() > 50.0f) {
+        if (location.getAccuracy() > 25.0f) {
             return;
         }
 

@@ -21,7 +21,8 @@ public class OrientationCalculator implements SensorEventListener {
     private static final String TAG = "OrientationCalculator";
 
     // 필터링 관련 상수
-    private static final float ALPHA = 0.1f;  // 저주파 통과 필터 계수
+    private static final float ALPHA = 0.05f;  // 저주파 통과 필터 계수
+    private static final int SENSOR_DELAY = SensorManager.SENSOR_DELAY_GAME;  // ~20ms
     private static final float RAD_TO_DEG = (float) (180.0f / Math.PI);
 
     // 자기장 간섭 임계값
@@ -49,7 +50,7 @@ public class OrientationCalculator implements SensorEventListener {
     public OrientationCalculator(@NonNull Context context) {
         this.sensorManager = (SensorManager)
                 context.getSystemService(Context.SENSOR_SERVICE);
-        this.orientationFilter = new NoiseFilter(5, 2.0);
+        this.orientationFilter = new NoiseFilter(5, 1.5);
         this.callbacks = new ArrayList<>();
 
         initializeSensors();
@@ -67,7 +68,8 @@ public class OrientationCalculator implements SensorEventListener {
                 sensorManager.registerListener(
                         this,
                         accelerometer,
-                        SensorManager.SENSOR_DELAY_GAME
+                        SENSOR_DELAY,
+                        SensorManager.SENSOR_STATUS_ACCURACY_HIGH
                 );
             }
 
@@ -78,9 +80,11 @@ public class OrientationCalculator implements SensorEventListener {
                 sensorManager.registerListener(
                         this,
                         magnetometer,
-                        SensorManager.SENSOR_DELAY_GAME
+                        SENSOR_DELAY,
+                        SensorManager.SENSOR_STATUS_ACCURACY_HIGH
                 );
             }
+
 
             Log.i(TAG, "Orientation sensors initialized");
         } catch (Exception e) {
@@ -98,6 +102,7 @@ public class OrientationCalculator implements SensorEventListener {
                             accelerometerReading, 0,
                             accelerometerReading.length
                     );
+                    updateOrientation();  // 가속도계 데이터가 갱신될 때마다 방향 업데이트
                     break;
 
                 case Sensor.TYPE_MAGNETIC_FIELD:
@@ -106,10 +111,9 @@ public class OrientationCalculator implements SensorEventListener {
                             magnetometerReading, 0,
                             magnetometerReading.length
                     );
+                    updateOrientation();  // 지자기 데이터가 갱신될 때마다 방향 업데이트
                     break;
             }
-
-            updateOrientation();
         } catch (Exception e) {
             Log.e(TAG, "Error processing sensor data", e);
         }
@@ -160,11 +164,15 @@ public class OrientationCalculator implements SensorEventListener {
         // 보정된 방향 저장
         previousAzimuth = azimuth;
 
-        // 자기장 간섭 체크 및 처리
-        if (isMagneticInterference()) {
-            handleMagneticInterference(azimuth);
-        } else {
+
+        // 필터링 감도 조정
+        azimuth = (float) orientationFilter.filter(azimuth);
+
+        // 콜백 즉시 호출
+        if (!isMagneticInterference()) {
             notifyOrientationChanged(azimuth);
+        } else {
+            handleMagneticInterference(azimuth);
         }
     }
 
