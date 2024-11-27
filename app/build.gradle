@@ -72,4 +72,5 @@ dependencies {
     implementation 'com.squareup.retrofit2:retrofit:2.9.0' // Retrofit 의존성 추가
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0' // Gson Converter 의존성 추가
     implementation 'com.squareup.okhttp3:okhttp:4.9.0' // OkHttp 의존성 추가 (선택사항, Retrofit의 기본 클라이언트)
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.10.0'
 }

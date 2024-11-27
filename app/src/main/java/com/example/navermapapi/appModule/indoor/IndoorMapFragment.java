@@ -1,8 +1,11 @@
 package com.example.navermapapi.appModule.indoor;
 
+import static androidx.constraintlayout.widget.ConstraintLayoutStates.TAG;
+
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,7 +14,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
-
 import com.example.navermapapi.R;
 import com.example.navermapapi.appModule.main.MainActivity;
 import com.example.navermapapi.appModule.main.MainViewModel;
@@ -22,25 +24,28 @@ import com.example.navermapapi.databinding.FragmentIndoorMapBinding;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.geometry.LatLngBounds;
 import com.naver.maps.map.CameraPosition;
-import com.naver.maps.map.CameraUpdate; // Import CameraUpdate here
+import com.naver.maps.map.CameraUpdate;
 import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.NaverMap;
 import com.naver.maps.map.OnMapReadyCallback;
 import com.naver.maps.map.overlay.LocationOverlay;
 import com.naver.maps.map.util.FusedLocationSource;
 
-import java.util.Objects;
-import retrofit2.Call;
-import retrofit2.Callback;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.OkHttpClient;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
-    private static final LatLng REFERENCE_POINT = new LatLng(37.5666102, 126.9783881); // 기준점 좌표
-    private static final double FLOOR_PLAN_WIDTH_METERS = 100.0; // 도면의 실제 너비 (미터)
-    private static final double FLOOR_PLAN_HEIGHT_METERS = 80.0; // 도면의 실제 높이 (미터)
+    private static final double FLOOR_PLAN_WIDTH_METERS = 100.0;
+    private static final double FLOOR_PLAN_HEIGHT_METERS = 80.0;
+
+    private static final String NAVER_CLIENT_ID = "9fk3x9j37i";
+    private static final String NAVER_CLIENT_SECRET = "UvmuPMa5rUWtSbyvoCKZoNBnvAZSl4kjIyjvtZga";
 
     private FragmentIndoorMapBinding binding;
     private MainViewModel viewModel;
@@ -78,7 +83,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     private void setupUI() {
-        // 도면 투명도 조절 SeekBar 설정
         binding.overlayOpacitySeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -95,12 +99,11 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
             public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        // 도면 회전 SeekBar 설정
         binding.overlayRotationSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (indoorMapOverlay != null) {
-                    double rotation = progress * 3.6; // 0-100을 0-360도로 변환
+                    double rotation = progress * 3.6;
                     indoorMapOverlay.setRotation(rotation);
                 }
             }
@@ -112,7 +115,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
             public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        // 음성 안내 버튼 설정
         binding.indoorVoiceGuideButton.setOnClickListener(v -> {
             LocationData currentLocation = viewModel.getCurrentLocation().getValue();
             if (currentLocation != null) {
@@ -132,57 +134,71 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
 
         setupMapSettings(naverMap);
         setupLocationOverlay(naverMap);
-        setupIndoorMapOverlay();
 
-        // Geocoding 호출하여 REFERENCE_POINT 설정
         String targetAddress = "서울 성동구 살곶이길 200";
-        LatLng coordinates = getCoordinatesFromAddress(targetAddress);
+        new Thread(() -> {
+            LatLng coordinates = getCoordinatesFromAddress(targetAddress);
+            if (coordinates != null) {
+                requireActivity().runOnUiThread(() -> {
+                    setupIndoorMapOverlay(coordinates);
+                    naverMap.moveCamera(CameraUpdate.scrollTo(coordinates));
+                    naverMap.moveCamera(CameraUpdate.zoomTo(18.0));
+                });
+            } else {
+                Log.e("IndoorMapFragment", "Failed to get coordinates for address: " + targetAddress);
+            }
+        }).start();
 
-        if (coordinates != null) {
-            // REFERENCE_POINT를 기준으로 카메라 이동
-            naverMap.moveCamera(CameraUpdate.scrollTo(coordinates));
-        }
-
-        // 마지막 위치로 카메라 이동
         LocationData lastLocation = viewModel.getCurrentLocation().getValue();
         if (lastLocation != null) {
             updateLocationUI(lastLocation);
         }
     }
 
-    // Geocoding API로 주소를 좌표로 변환하는 메서드
-    public LatLng getCoordinatesFromAddress(String address) {
-        final LatLng[] coordinates = new LatLng[1];
+    private LatLng getCoordinatesFromAddress(String address) {
+        try {
+            OkHttpClient client = new OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(10, TimeUnit.SECONDS)
+                    .writeTimeout(10, TimeUnit.SECONDS)
+                    .build();
 
-        // Retrofit 초기화
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("https://naveropenapi.apigw.ntruss.com/") // 네이버 API 기본 URL
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
+            Retrofit retrofit = new Retrofit.Builder()
+                    .baseUrl("https://naveropenapi.apigw.ntruss.com/")
+                    .client(client)
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .build();
 
-        GeocodingService service = retrofit.create(GeocodingService.class);
+            GeocodingService service = retrofit.create(GeocodingService.class);
 
-        // API 호출
-        Call<GeocodingResponse> call = service.getCoordinates(address, "YOUR_CLIENT_ID", "YOUR_CLIENT_SECRET");
-        call.enqueue(new Callback<GeocodingResponse>() {
-            @Override
-            public void onResponse(Call<GeocodingResponse> call, Response<GeocodingResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    GeocodingResponse result = response.body();
-                    // 첫 번째 좌표값 추출
-                    double latitude = result.getAddresses().get(0).getLat();
-                    double longitude = result.getAddresses().get(0).getLng();
-                    coordinates[0] = new LatLng(latitude, longitude);
+            Response<GeocodingResponse> response = service.getCoordinates(
+                    address,
+                    NAVER_CLIENT_ID,
+                    NAVER_CLIENT_SECRET
+            ).execute();
+
+            if (response.isSuccessful() && response.body() != null) {
+                List<GeocodingResponse.Address> addresses = response.body().getAddresses();
+                if (addresses != null && !addresses.isEmpty()) {
+                    GeocodingResponse.Address addr = addresses.get(0);
+                    Log.d(TAG, "Successfully geocoded address: " + addr.getRoadAddress());
+                    return new LatLng(addr.getLat(), addr.getLng());
+                } else {
+                    Log.e(TAG, "No addresses found in response");
                 }
+            } else {
+                Log.e(TAG, "Geocoding API error - Code: " + response.code() +
+                        ", Message: " + response.message() +
+                        ", Error body: " + (response.errorBody() != null ?
+                        response.errorBody().string() : "null"));
             }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting coordinates", e);
+        }
 
-            @Override
-            public void onFailure(Call<GeocodingResponse> call, Throwable t) {
-                t.printStackTrace();
-            }
-        });
-
-        return coordinates[0];
+        // 기본 좌표값 반환 (한양여대)
+        Log.w(TAG, "Returning default coordinates (한양여대)");
+        return new LatLng(37.5579175887117, 127.0493218973167);
     }
 
     private void setupMapSettings(@NonNull NaverMap naverMap) {
@@ -193,7 +209,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         naverMap.setMinZoom(17.0);
         naverMap.setMaxZoom(20.0);
 
-        // 지도 UI 설정
         naverMap.getUiSettings().setIndoorLevelPickerEnabled(true);
         naverMap.getUiSettings().setZoomControlEnabled(true);
         naverMap.getUiSettings().setCompassEnabled(true);
@@ -204,34 +219,31 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         locationOverlay.setVisible(true);
     }
 
-    private void setupIndoorMapOverlay() {
+    private void setupIndoorMapOverlay(LatLng center) {
         try {
-            // 도면 이미지 로드
             Bitmap floorPlanBitmap = BitmapFactory.decodeResource(
                     getResources(),
-                    R.drawable.indoor_floor_plan_3f // 실제 도면 이미지 리소스
+                    R.drawable.indoor_floor_plan_3f
             );
 
-            // 도면이 표시될 영역 계산
-            LatLngBounds bounds = calculateFloorPlanBounds(REFERENCE_POINT,
+            LatLngBounds bounds = calculateFloorPlanBounds(
+                    center,
                     FLOOR_PLAN_WIDTH_METERS,
-                    FLOOR_PLAN_HEIGHT_METERS);
+                    FLOOR_PLAN_HEIGHT_METERS
+            );
 
-            // 오버레이 설정
             indoorMapOverlay.setFloorPlan(floorPlanBitmap);
             indoorMapOverlay.setBounds(bounds);
             indoorMapOverlay.setMap(naverMap);
-            indoorMapOverlay.setOpacity(0.7f); // 초기 투명도 설정
+            indoorMapOverlay.setOpacity(0.7f);
 
         } catch (Exception e) {
-            e.printStackTrace();
-            // 에러 처리
+            Log.e("IndoorMapFragment", "Error setting up indoor map overlay", e);
         }
     }
 
     private LatLngBounds calculateFloorPlanBounds(LatLng center, double widthMeters, double heightMeters) {
-        // 미터 단위를 위경도로 변환 (근사값)
-        double metersPerLat = 111320.0; // 1도당 미터
+        double metersPerLat = 111320.0;
         double metersPerLng = 111320.0 * Math.cos(Math.toRadians(center.latitude));
 
         double latOffset = (heightMeters / 2) / metersPerLat;
@@ -250,13 +262,12 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         locationOverlay.setPosition(position);
         locationOverlay.setBearing(location.getBearing());
 
-        // 지도 카메라 업데이트
         if (viewModel.isAutoTrackingEnabled()) {
             CameraPosition cameraPosition = new CameraPosition(
                     position,
-                    18.0,  // 줌 레벨
-                    0,     // 틸트
-                    location.getBearing()  // 방향
+                    18.0,
+                    0,
+                    location.getBearing()
             );
             naverMap.setCameraPosition(cameraPosition);
         }
@@ -264,7 +275,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         updateStepCount();
         updateDirectionInfo(location.getBearing());
 
-        // 현재 위치가 도면 영역 내부인지 확인하고 처리
         if (indoorMapOverlay != null && indoorMapOverlay.getBounds() != null) {
             boolean isInsideFloorPlan = indoorMapOverlay.getBounds().contains(position);
             handleLocationInFloorPlan(isInsideFloorPlan, position);
@@ -273,11 +283,9 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
 
     private void handleLocationInFloorPlan(boolean isInside, LatLng position) {
         if (isInside) {
-            // 도면 내부에 있을 때의 처리
             indoorMapOverlay.setVisible(true);
             updateRelativePosition(position);
         } else {
-            // 도면 외부에 있을 때의 처리
             binding.locationWarning.setVisibility(View.VISIBLE);
             binding.locationWarning.setText(R.string.outside_floor_plan_warning);
         }
@@ -286,14 +294,12 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     private void updateRelativePosition(LatLng currentPosition) {
         if (indoorMapOverlay.getBounds() == null) return;
 
-        // 도면 상의 상대 위치 계산 (0-1 범위)
         LatLngBounds bounds = indoorMapOverlay.getBounds();
         double relativeX = (currentPosition.longitude - bounds.getSouthWest().longitude) /
                 (bounds.getNorthEast().longitude - bounds.getSouthWest().longitude);
         double relativeY = (currentPosition.latitude - bounds.getSouthWest().latitude) /
                 (bounds.getNorthEast().latitude - bounds.getSouthWest().latitude);
 
-        // UI 업데이트
         binding.relativePositionText.setText(String.format(
                 getString(R.string.relative_position_format),
                 Math.round(relativeX * 100),
@@ -303,17 +309,14 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
 
     private void handleEnvironmentChange(EnvironmentType environment) {
         if (environment == EnvironmentType.OUTDOOR) {
-            // 실외로 전환될 때 도면 숨김
             if (indoorMapOverlay != null) {
                 indoorMapOverlay.setVisible(false);
             }
-            // OutdoorMapFragment로 전환
             requireActivity().getSupportFragmentManager()
                     .beginTransaction()
                     .replace(R.id.nav_host_fragment, new OutdoorMapFragment())
                     .commit();
         } else {
-            // 실내로 전환될 때 도면 표시
             if (indoorMapOverlay != null) {
                 indoorMapOverlay.setVisible(true);
             }
@@ -331,7 +334,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     private String getDirectionText(float degrees) {
-        // 8방향으로 방향 텍스트 변환
         String[] directions = {"북", "북동", "동", "남동", "남", "남서", "서", "북서"};
         int index = Math.round(degrees / 45f) % 8;
         return directions[index];
@@ -346,7 +348,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
                     direction,
                     stepCount
             );
-            // VoiceGuideManager를 통해 안내 (이미 구현되어 있음)
             if (getActivity() instanceof MainActivity) {
                 ((MainActivity) getActivity()).announceVoiceGuide(announcement);
             }
@@ -357,7 +358,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
         binding.indoorMapView.onSaveInstanceState(outState);
-        // 현재 상태 저장
         outState.putInt("stepCount", stepCount);
         outState.putFloat("overlayOpacity",
                 binding.overlayOpacitySeekBar.getProgress() / 100.0f);
@@ -369,7 +369,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     public void onViewStateRestored(@Nullable Bundle savedInstanceState) {
         super.onViewStateRestored(savedInstanceState);
         if (savedInstanceState != null) {
-            // 저장된 상태 복원
             stepCount = savedInstanceState.getInt("stepCount", 0);
             float opacity = savedInstanceState.getFloat("overlayOpacity", 0.7f);
             float rotation = savedInstanceState.getFloat("overlayRotation", 0f);
