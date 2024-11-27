@@ -21,4 +21,14 @@
     <!-- Elevation -->
     <dimen name="elevation_normal">4dp</dimen>
     <dimen name="elevation_large">8dp</dimen>
+
+    <!-- 지도 관련 크기 -->
+    <dimen name="map_height">0dp</dimen>
+    <dimen name="control_margin">16dp</dimen>
+    <dimen name="path_width">5dp</dimen>
+
+
+    <!-- 텍스트 크기 -->
+    <dimen name="text_size_normal">16sp</dimen>
+
 </resources>

@@ -20,4 +20,15 @@
 
     <color name="beaconMarker">#F44336</color>
     <color name="destinationMarker">#FFC107</color>
+
+    <color name="path_color">#2196F3</color>
+    <color name="indoor_path_color">#4CAF50</color>
+    <color name="marker_color">#F44336</color>
+
+    <!-- 텍스트 색상 -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+
+    <!-- 경고 색상 -->
+    <color name="warning_color">#FF5722</color>
 </resources>

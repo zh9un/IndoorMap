@@ -20,4 +20,21 @@
         <item name="android:textColor">@color/textPrimary</item>
         <item name="android:padding">8dp</item>
     </style>
+
+    <!-- 버튼 스타일 -->
+    <style name="NavigationButton" parent="Widget.MaterialComponents.Button">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">@dimen/button_height</item>
+        <item name="android:layout_margin">@dimen/button_margin</item>
+        <item name="android:textSize">@dimen/text_size_normal</item>
+    </style>
+
+    <!-- 텍스트 스타일 -->
+    <style name="InfoText">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">@dimen/text_size_normal</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:padding">@dimen/control_margin</item>
+    </style>
 </resources>
