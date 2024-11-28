@@ -27,6 +27,7 @@ public class LocationStateManager {
     private static final String TAG = "LocationStateManager";
 
     // 상태 전환 관련 상수
+    private LocationData initialGpsLocation;
     private static final float OUTDOOR_SIGNAL_THRESHOLD = -130.0f;  // dBm
     private static final float INDOOR_SIGNAL_THRESHOLD = -140.0f;   // dBm
     private static final int MIN_SATELLITES_OUTDOOR = 4;
@@ -113,6 +114,24 @@ public class LocationStateManager {
             samplesCount = 0;
         }
     }
+
+    /**
+     * 초기 GPS 위치를 설정합니다 (최초 한 번만 저장)
+     */
+    public void setInitialGpsLocation(@NonNull LocationData location) {
+        if (initialGpsLocation == null && location.getProvider().equals("GPS")) {
+            initialGpsLocation = location;
+            Log.d(TAG, "Initial GPS location set.");
+        }
+    }
+
+    /**
+     * 초기 GPS 위치를 반환합니다
+     */
+    public LocationData getInitialGpsLocation() {
+        return initialGpsLocation;
+    }
+
 
     /**
      * 환경 상태 평가 및 전환 처리

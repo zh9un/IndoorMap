@@ -22,6 +22,8 @@ import com.example.navermapapi.coreModule.utils.filter.NoiseFilter;
 import com.example.navermapapi.gpsModule.api.GpsLocationProvider;
 import com.example.navermapapi.beaconModule.api.BeaconLocationProvider;
 import com.example.navermapapi.coreModule.api.location.callback.LocationCallback;
+import com.naver.maps.geometry.LatLng;
+import com.example.navermapapi.beaconModule.internal.pdr.PdrPositionManager;
 /*
  * 파일명: LocationIntegrationManager.java
  * 경로: com.example.navermapapi.appModule.location.manager
@@ -114,10 +116,43 @@ public class LocationIntegrationManager {
 
     private void updateCurrentLocation(@NonNull LocationData location) {
         try {
-            // 위치 데이터 필터링
-            double filteredLat = locationFilter.filter(location.getLatitude());
-            double filteredLng = locationFilter.filter(location.getLongitude());
+            double filteredLat;
+            double filteredLng;
 
+            // PDR 데이터를 기반으로 좌표 계산
+            if (location.getProvider().equals("PDR")) {
+                // 초기 GPS 위치를 가져옴
+                LocationData initialLocationData = stateManager.getInitialGpsLocation();
+                if (initialLocationData != null) {
+                    LatLng initialLatLng = new LatLng(
+                            initialLocationData.getLatitude(),
+                            initialLocationData.getLongitude()
+                    );
+                    PdrPositionManager pdrManager = new PdrPositionManager(initialLatLng);
+
+                    // PDR의 offsetX, offsetY를 LatLng로 변환
+                    LatLng pdrLatLng = pdrManager.calculateLatLng(
+                            location.getOffsetX(),
+                            location.getOffsetY()
+                    );
+
+                    // 필터링 적용
+                    filteredLat = locationFilter.filter(pdrLatLng.latitude);
+                    filteredLng = locationFilter.filter(pdrLatLng.longitude);
+                } else {
+                    Log.w(TAG, "초기 GPS 위치가 없어 PDR 위치를 계산할 수 없습니다.");
+                    return;
+                }
+            } else {
+                // 기존 GPS 데이터의 경우 필터링만 적용
+                filteredLat = locationFilter.filter(location.getLatitude());
+                filteredLng = locationFilter.filter(location.getLongitude());
+
+                // 초기 GPS 위치 설정 (최초 한 번만)
+                stateManager.setInitialGpsLocation(location);
+            }
+
+            // 필터링된 위치 데이터로 LocationData 생성
             LocationData filteredLocation = new LocationData.Builder(filteredLat, filteredLng)
                     .accuracy(location.getAccuracy())
                     .altitude(location.getAltitude())

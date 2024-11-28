@@ -50,6 +50,20 @@ public class BeaconLocationProvider {
         this.isTracking = new AtomicBoolean(false);
     }
 
+    private void processPdrData(double offsetX, double offsetY, float estimatedAccuracy) {
+        // PDR 위치 데이터를 생성
+        LocationData pdrLocationData = new LocationData.Builder(0.0, 0.0) // 임시로 0.0 설정
+                .offsetX(offsetX)
+                .offsetY(offsetY)
+                .accuracy(estimatedAccuracy)
+                .provider("PDR")
+                .environment(EnvironmentType.INDOOR)
+                .build();
+
+        // 콜백을 통해 위치 업데이트 알림
+        notifyLocationChanged(pdrLocationData);
+    }
+
     public void initialize() {
         if (isInitialized) {
             Log.d(TAG, "Already initialized");

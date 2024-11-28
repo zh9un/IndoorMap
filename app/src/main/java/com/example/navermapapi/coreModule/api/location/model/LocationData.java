@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 
 public class LocationData {
+
     private final double latitude;
     private final double longitude;
     private final float accuracy;
@@ -14,6 +15,10 @@ public class LocationData {
     private final long timestamp;
     private final String provider;
     private final float confidence;
+
+    // 추가된 필드
+    private final double offsetX;
+    private final double offsetY;
 
     private LocationData(Builder builder) {
         this.latitude = builder.latitude;
@@ -26,6 +31,9 @@ public class LocationData {
         this.provider = builder.provider;
         this.confidence = builder.confidence;
         this.timestamp = System.currentTimeMillis();
+        // 추가된 필드 초기화
+        this.offsetX = builder.offsetX;
+        this.offsetY = builder.offsetY;
     }
 
     // Getter methods
@@ -39,6 +47,10 @@ public class LocationData {
     public String getProvider() { return provider; }
     public float getConfidence() { return confidence; }
     public long getTimestamp() { return timestamp; }
+
+    // 추가된 Getter methods
+    public double getOffsetX() { return offsetX; }
+    public double getOffsetY() { return offsetY; }
 
     public boolean isValid() {
         return accuracy <= 50.0f &&
@@ -68,6 +80,10 @@ public class LocationData {
         private String provider = "GPS";
         private float confidence = 1.0f;
 
+        // 추가된 필드 초기값 설정
+        private double offsetX = 0.0;
+        private double offsetY = 0.0;
+
         public Builder(double latitude, double longitude) {
             this.latitude = latitude;
             this.longitude = longitude;
@@ -84,6 +100,9 @@ public class LocationData {
             this.environment = locationData.getEnvironment();
             this.provider = locationData.getProvider();
             this.confidence = locationData.getConfidence();
+            // 추가된 필드 복사
+            this.offsetX = locationData.getOffsetX();
+            this.offsetY = locationData.getOffsetY();
         }
 
         public Builder accuracy(float accuracy) {
@@ -121,9 +140,21 @@ public class LocationData {
             return this;
         }
 
+        // 추가된 메서드
+        public Builder offsetX(double offsetX) {
+            this.offsetX = offsetX;
+            return this;
+        }
+
+        public Builder offsetY(double offsetY) {
+            this.offsetY = offsetY;
+            return this;
+        }
+
         public LocationData build() {
             return new LocationData(this);
         }
+
     }
 
     @Override
