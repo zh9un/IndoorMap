@@ -18,9 +18,9 @@ import com.example.navermapapi.appModule.main.MainViewModel;
 import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 import com.example.navermapapi.coreModule.api.location.model.LocationData;
 import com.example.navermapapi.databinding.FragmentOutdoorMapBinding;
+import com.example.navermapapi.utils.FloorPlanConfig;
+import com.example.navermapapi.utils.FloorPlanManager;
 import com.naver.maps.geometry.LatLng;
-import com.naver.maps.geometry.LatLngBounds;
-import com.naver.maps.map.CameraPosition;
 import com.naver.maps.map.CameraUpdate;
 import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.MapFragment;
@@ -42,15 +42,13 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
     private static final String TAG = "OutdoorMapFragment";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
 
-    // 전시장 위치 정의
-    private static final LatLng EXHIBITION_CENTER = new LatLng(37.5666102, 126.9783881);
-    private static final double EXHIBITION_RADIUS = 100.0;  // 미터
-
     private FragmentOutdoorMapBinding binding;
     private MainViewModel viewModel;
     private NaverMap naverMap;
     private LocationOverlay locationOverlay;
     private FusedLocationSource locationSource;
+    private FloorPlanManager floorPlanManager;
+
     private List<Marker> destinationMarkers;
     private PathOverlay pathOverlay;
     private boolean isNavigating = false;
@@ -63,6 +61,10 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
         super.onCreate(savedInstanceState);
         viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
         locationSource = new FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE);
+
+        // FloorPlanManager 인스턴스 가져오기
+        floorPlanManager = FloorPlanManager.getInstance(requireContext());
+
         destinationMarkers = new ArrayList<>();
         pathOverlay = new PathOverlay();
     }
@@ -118,8 +120,11 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
         setupMapSettings(naverMap);
         setupLocationOverlay(naverMap);
 
+        // 도면 설정
+        setupFloorPlan();
+
         // 전시장 위치로 초기 카메라 이동
-        naverMap.moveCamera(CameraUpdate.scrollTo(EXHIBITION_CENTER));
+        naverMap.moveCamera(CameraUpdate.scrollTo(FloorPlanConfig.CENTER));
 
         // 지도 클릭 이벤트 설정
         naverMap.setOnMapClickListener((point, coord) -> {
@@ -133,6 +138,28 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
             updateLocationUI(lastLocation);
         }
     }
+
+    private void setupFloorPlan() {
+        try {
+            // FloorPlanManager 초기화
+            floorPlanManager.initialize(
+                    FloorPlanConfig.RESOURCE_ID,
+                    FloorPlanConfig.CENTER,
+                    FloorPlanConfig.OVERLAY_WIDTH_METERS,
+                    FloorPlanConfig.ROTATION,
+                    0.3f // 실외에서는 더 투명하게 설정
+            );
+
+            floorPlanManager.setMap(naverMap);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting up floor plan", e);
+            // 필요에 따라 에러 처리
+        }
+    }
+
+
+
 
     private void setupMapSettings(@NonNull NaverMap naverMap) {
         naverMap.setLocationSource(locationSource);
@@ -179,8 +206,8 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     private void updateDistanceToExhibition(LatLng currentPosition) {
-        double distance = calculateDistance(currentPosition, EXHIBITION_CENTER);
-        String distanceText = getString(R.string.distance_to_exhibition_format, (int)distance);
+        double distance = calculateDistance(currentPosition, FloorPlanConfig.CENTER);
+        String distanceText = getString(R.string.distance_to_exhibition_format, (int) distance);
         binding.destinationInfo.setText(distanceText);
         binding.destinationInfo.setContentDescription(distanceText);
     }
@@ -240,7 +267,7 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
         double distance = calculateDistance(
                 locationOverlay.getPosition(),
                 position);
-        String announcement = getString(R.string.destination_set_format, (int)distance);
+        String announcement = getString(R.string.destination_set_format, (int) distance);
         voiceGuideManager.announce(announcement);
     }
 
@@ -263,24 +290,6 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
         pathOverlay.setMap(naverMap);
     }
 
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        binding = null;
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        if (locationSource.onRequestPermissionsResult(requestCode, permissions, grantResults)) {
-            if (!locationSource.isActivated()) {
-                naverMap.setLocationTrackingMode(LocationTrackingMode.None);
-            }
-        }
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-    }
-
     private void updateDestinationUI(LatLng destination) {
         if (destination == null) {
             clearDestinationMarkers();
@@ -301,9 +310,31 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
                     locationOverlay.getPosition(),
                     destination
             );
-            String distanceText = getString(R.string.distance_to_destination_format, (int)distance);
+            String distanceText = getString(R.string.distance_to_destination_format, (int) distance);
             binding.destinationInfo.setText(distanceText);
             binding.destinationInfo.setContentDescription(distanceText);
         }
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (floorPlanManager != null) {
+            floorPlanManager.cleanup();
+        }
+        clearDestinationMarkers();
+        binding = null;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        if (locationSource.onRequestPermissionsResult(requestCode, permissions, grantResults)) {
+            if (!locationSource.isActivated()) {
+                naverMap.setLocationTrackingMode(LocationTrackingMode.None);
+            }
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 }

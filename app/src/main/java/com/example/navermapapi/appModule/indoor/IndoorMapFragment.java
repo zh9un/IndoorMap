@@ -1,14 +1,13 @@
 package com.example.navermapapi.appModule.indoor;
 
 import android.annotation.SuppressLint;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.SeekBar;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -22,10 +21,11 @@ import com.example.navermapapi.appModule.main.MainViewModel;
 import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 import com.example.navermapapi.coreModule.api.location.model.LocationData;
 import com.example.navermapapi.databinding.FragmentIndoorMapBinding;
+import com.example.navermapapi.utils.FloorPlanConfig;
+import com.example.navermapapi.utils.FloorPlanManager;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.geometry.LatLngBounds;
 import com.naver.maps.map.CameraPosition;
-import com.naver.maps.map.CameraUpdate;
 import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.MapFragment;
 import com.naver.maps.map.NaverMap;
@@ -41,17 +41,12 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     private static final String TAG = "IndoorMapFragment";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
 
-    // 실내 도면 관련 상수
-    private static final LatLng REFERENCE_POINT = new LatLng(37.5666102, 126.9783881);
-    private static final double FLOOR_PLAN_WIDTH_METERS = 100.0;
-    private static final double FLOOR_PLAN_HEIGHT_METERS = 80.0;
-
     private FragmentIndoorMapBinding binding;
     private MainViewModel viewModel;
     private NaverMap naverMap;
     private LocationOverlay locationOverlay;
     private FusedLocationSource locationSource;
-    private IndoorMapOverlay indoorMapOverlay;
+    private FloorPlanManager floorPlanManager;
     private int stepCount = 0;
 
     @Inject
@@ -67,7 +62,9 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         super.onCreate(savedInstanceState);
         viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
         locationSource = new FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE);
-        indoorMapOverlay = new IndoorMapOverlay();
+
+        // FloorPlanManager 인스턴스 가져오기
+        floorPlanManager = FloorPlanManager.getInstance(requireContext());
 
         if (savedInstanceState != null) {
             restoreState(savedInstanceState);
@@ -84,7 +81,8 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     @Override
-    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+    public void onViewCreated(@NonNull View view,
+                              @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         initializeMap();
         setupUI();
@@ -110,42 +108,36 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     private void setupOverlayControls() {
-        // 도면 투명도 조절
         binding.overlayOpacitySeekBar.setOnSeekBarChangeListener(
                 new SeekBar.OnSeekBarChangeListener() {
                     @Override
-                    public void onProgressChanged(SeekBar seekBar, int progress,
-                                                  boolean fromUser) {
-                        if (indoorMapOverlay != null) {
-                            float opacity = progress / 100.0f;
-                            indoorMapOverlay.setOpacity(opacity);
-                        }
+                    public void onProgressChanged(SeekBar seekBar,
+                                                  int progress, boolean fromUser) {
+                        float opacity = progress / 100.0f;
+                        floorPlanManager.setOpacity(opacity);
                     }
 
                     @Override
-                    public void onStartTrackingTouch(SeekBar seekBar) {}
+                    public void onStartTrackingTouch(SeekBar seekBar) { }
 
                     @Override
-                    public void onStopTrackingTouch(SeekBar seekBar) {}
+                    public void onStopTrackingTouch(SeekBar seekBar) { }
                 });
 
-        // 도면 회전 조절
         binding.overlayRotationSeekBar.setOnSeekBarChangeListener(
                 new SeekBar.OnSeekBarChangeListener() {
                     @Override
-                    public void onProgressChanged(SeekBar seekBar, int progress,
-                                                  boolean fromUser) {
-                        if (indoorMapOverlay != null) {
-                            double rotation = progress * 3.6; // 0-100을 0-360도로 변환
-                            indoorMapOverlay.setRotation(rotation);
-                        }
+                    public void onProgressChanged(SeekBar seekBar,
+                                                  int progress, boolean fromUser) {
+                        float rotation = progress * 3.6f; // 0-100을 0-360도로 변환
+                        floorPlanManager.setRotation(rotation);
                     }
 
                     @Override
-                    public void onStartTrackingTouch(SeekBar seekBar) {}
+                    public void onStartTrackingTouch(SeekBar seekBar) { }
 
                     @Override
-                    public void onStopTrackingTouch(SeekBar seekBar) {}
+                    public void onStopTrackingTouch(SeekBar seekBar) { }
                 });
     }
 
@@ -166,8 +158,10 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     private void setupObservers() {
-        viewModel.getCurrentLocation().observe(getViewLifecycleOwner(), this::updateLocationUI);
-        viewModel.getCurrentEnvironment().observe(getViewLifecycleOwner(), this::handleEnvironmentChange);
+        viewModel.getCurrentLocation().observe(
+                getViewLifecycleOwner(), this::updateLocationUI);
+        viewModel.getCurrentEnvironment().observe(
+                getViewLifecycleOwner(), this::handleEnvironmentChange);
     }
 
     @Override
@@ -175,9 +169,10 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         this.naverMap = naverMap;
         setupMapSettings(naverMap);
         setupLocationOverlay(naverMap);
-        setupIndoorMapOverlay();
 
-        // 마지막 위치로 카메라 이동
+        // 도면 설정
+        setupFloorPlan();
+
         LocationData lastLocation = viewModel.getCurrentLocation().getValue();
         if (lastLocation != null) {
             updateLocationUI(lastLocation);
@@ -202,52 +197,34 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         locationOverlay.setVisible(true);
     }
 
-    private void setupIndoorMapOverlay() {
+    private void setupFloorPlan() {
         try {
-            // 도면 이미지 로드
-            Bitmap floorPlanBitmap = BitmapFactory.decodeResource(
-                    getResources(),
-                    R.drawable.indoor_floor_plan_3f  // 실제 도면 이미지
+            // FloorPlanManager 초기화
+            floorPlanManager.initialize(
+                    FloorPlanConfig.RESOURCE_ID,
+                    FloorPlanConfig.CENTER,
+                    FloorPlanConfig.OVERLAY_WIDTH_METERS,
+                    FloorPlanConfig.ROTATION,
+                    FloorPlanConfig.OPACITY
             );
 
-            // 도면 표시 영역 계산
-            LatLngBounds bounds = calculateFloorPlanBounds(
-                    REFERENCE_POINT,
-                    FLOOR_PLAN_WIDTH_METERS,
-                    FLOOR_PLAN_HEIGHT_METERS
-            );
-
-            indoorMapOverlay.setFloorPlan(floorPlanBitmap);
-            indoorMapOverlay.setBounds(bounds);
-            indoorMapOverlay.setMap(naverMap);
-            indoorMapOverlay.setOpacity(0.7f);
+            floorPlanManager.setMap(naverMap);
 
         } catch (Exception e) {
-            Log.e(TAG, "Error setting up indoor map overlay", e);
+            Log.e(TAG, "Error setting up floor plan", e);
             handleOverlayError(e);
         }
     }
 
-    private LatLngBounds calculateFloorPlanBounds(LatLng center,
-                                                  double widthMeters,
-                                                  double heightMeters) {
-        double metersPerLat = 111320.0;
-        double metersPerLng = 111320.0 * Math.cos(Math.toRadians(center.latitude));
 
-        double latOffset = (heightMeters / 2) / metersPerLat;
-        double lngOffset = (widthMeters / 2) / metersPerLng;
-
-        return new LatLngBounds(
-                new LatLng(center.latitude - latOffset, center.longitude - lngOffset),
-                new LatLng(center.latitude + latOffset, center.longitude + lngOffset)
-        );
-    }
 
     private void updateLocationUI(LocationData location) {
-        if (location == null || naverMap == null || locationOverlay == null) return;
+        if (location == null || naverMap == null || locationOverlay == null)
+            return;
 
         try {
-            LatLng position = new LatLng(location.getLatitude(), location.getLongitude());
+            LatLng position = new LatLng(location.getLatitude(),
+                    location.getLongitude());
             locationOverlay.setPosition(position);
             locationOverlay.setBearing(location.getBearing());
 
@@ -275,8 +252,9 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     private void checkLocationInFloorPlan(LatLng position) {
-        if (indoorMapOverlay != null && indoorMapOverlay.getBounds() != null) {
-            boolean isInside = indoorMapOverlay.getBounds().contains(position);
+        LatLngBounds bounds = floorPlanManager.getBounds();
+        if (bounds != null) {
+            boolean isInside = bounds.contains(position);
             handleLocationInFloorPlan(isInside, position);
         }
     }
@@ -293,7 +271,8 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     private void updateRelativePosition(LatLng position) {
-        LatLngBounds bounds = indoorMapOverlay.getBounds();
+        LatLngBounds bounds = floorPlanManager.getBounds();
+        if (bounds == null) return;
 
         double relativeX = (position.longitude - bounds.getSouthWest().longitude) /
                 (bounds.getNorthEast().longitude - bounds.getSouthWest().longitude);
@@ -352,7 +331,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     @Override
     public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
-        // 현재 상태 저장
         outState.putInt(KEY_STEP_COUNT, stepCount);
         outState.putFloat(KEY_OVERLAY_OPACITY,
                 binding.overlayOpacitySeekBar.getProgress() / 100.0f);
@@ -362,19 +340,16 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
 
     private void restoreState(@NonNull Bundle savedState) {
         stepCount = savedState.getInt(KEY_STEP_COUNT, 0);
-        float opacity = savedState.getFloat(KEY_OVERLAY_OPACITY, 0.7f);
-        float rotation = savedState.getFloat(KEY_OVERLAY_ROTATION, 0f);
+        float opacity = savedState.getFloat(KEY_OVERLAY_OPACITY, FloorPlanConfig.OPACITY);
+        float rotation = savedState.getFloat(KEY_OVERLAY_ROTATION, FloorPlanConfig.ROTATION);
 
-        // UI 상태 복원은 View가 생성된 후에 수행
         if (binding != null) {
             binding.overlayOpacitySeekBar.setProgress((int)(opacity * 100));
             binding.overlayRotationSeekBar.setProgress((int)(rotation / 3.6f));
         }
 
-        if (indoorMapOverlay != null) {
-            indoorMapOverlay.setOpacity(opacity);
-            indoorMapOverlay.setRotation(rotation);
-        }
+        floorPlanManager.setOpacity(opacity);
+        floorPlanManager.setRotation(rotation);
     }
 
     private void handleOverlayError(Exception e) {
@@ -382,6 +357,7 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         binding.locationWarning.setVisibility(View.VISIBLE);
         binding.locationWarning.setText(errorMessage);
         voiceGuideManager.announce(errorMessage);
+        Toast.makeText(requireContext(), errorMessage, Toast.LENGTH_SHORT).show();
         Log.e(TAG, "Floor plan error: " + e.getMessage());
     }
 
@@ -420,8 +396,8 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
 
     @Override
     public void onDestroyView() {
-        if (indoorMapOverlay != null) {
-            indoorMapOverlay.cleanup();
+        if (floorPlanManager != null) {
+            floorPlanManager.cleanup();
         }
         if (binding != null) {
             binding.indoorMapView.onDestroy();
