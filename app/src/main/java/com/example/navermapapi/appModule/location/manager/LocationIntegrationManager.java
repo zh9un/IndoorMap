@@ -1,16 +1,10 @@
 package com.example.navermapapi.appModule.location.manager;
 
-import android.Manifest;
 import android.content.Context;
-import android.location.Location;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
-import com.naver.maps.geometry.LatLng;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import dagger.hilt.android.qualifiers.ApplicationContext;
@@ -24,6 +18,7 @@ import com.example.navermapapi.beaconModule.api.BeaconLocationProvider;
 import com.example.navermapapi.coreModule.api.location.callback.LocationCallback;
 import com.naver.maps.geometry.LatLng;
 import com.example.navermapapi.beaconModule.internal.pdr.PdrPositionManager;
+
 /*
  * 파일명: LocationIntegrationManager.java
  * 경로: com.example.navermapapi.appModule.location.manager
@@ -34,15 +29,26 @@ import com.example.navermapapi.beaconModule.internal.pdr.PdrPositionManager;
 public class LocationIntegrationManager {
     private static final String TAG = "LocationIntegrationManager";
 
-    // 의존성
+    // 수동 환경 설정 관련 변수
+    private boolean isEnvironmentForced = false;
+    private EnvironmentType forcedEnvironment;
+
+    // 의존성 주입된 위치 제공자
     private final GpsLocationProvider gpsProvider;
     private final BeaconLocationProvider beaconProvider;
-    private final LocationStateManager stateManager;
+
+    // 위치 및 환경 상태 관리
+    private final MutableLiveData<LocationData> currentLocation = new MutableLiveData<>();
+    private final MutableLiveData<EnvironmentType> currentEnvironment = new MutableLiveData<>(EnvironmentType.OUTDOOR);
+
+    // 기타 변수
     private final NoiseFilter locationFilter;
 
-    // 상태 관리
     private final AtomicBoolean isInitialized;
     private final AtomicBoolean isTracking;
+
+    // 초기 GPS 위치 저장 (PDR 초기화 시 필요)
+    private LocationData initialGpsLocation;
 
     @Inject
     public LocationIntegrationManager(
@@ -52,12 +58,39 @@ public class LocationIntegrationManager {
     ) {
         this.gpsProvider = gpsProvider;
         this.beaconProvider = beaconProvider;
-        this.stateManager = new LocationStateManager();
         this.locationFilter = new NoiseFilter(5, 2.0);
         this.isInitialized = new AtomicBoolean(false);
         this.isTracking = new AtomicBoolean(false);
 
         setupCallbacks();
+    }
+
+    public void forceEnvironment(EnvironmentType environment) {
+        isEnvironmentForced = true;
+        forcedEnvironment = environment;
+        handleEnvironmentChange(environment);
+    }
+
+    public void resetEnvironment() {
+        isEnvironmentForced = false;
+        // 자동 환경 감지 로직 재개
+    }
+
+    private void handleEnvironmentChange(EnvironmentType newEnvironment) {
+        currentEnvironment.setValue(newEnvironment);
+
+        // 환경에 따른 위치 제공자 전환 로직
+        switch (newEnvironment) {
+            case INDOOR:
+                startIndoorTracking();
+                break;
+            case OUTDOOR:
+                startOutdoorTracking();
+                break;
+            case TRANSITION:
+                // 전환 상태 처리
+                break;
+        }
     }
 
     private void setupCallbacks() {
@@ -93,23 +126,21 @@ public class LocationIntegrationManager {
     }
 
     private void handleGpsLocation(@NonNull LocationData location) {
-        // GPS 신호 강도 및 위성 정보 업데이트
-        float signalStrength = gpsProvider.getCurrentSignalStrength();
-        int satellites = gpsProvider.getVisibleSatellites();
-        stateManager.updateSignalStrength(signalStrength, satellites);
+        // 수동 환경 설정이 아닌 경우에만 자동 환경 감지
+        if (!isEnvironmentForced) {
+            EnvironmentType newEnvironment = determineEnvironment(location);
+            if (newEnvironment != currentEnvironment.getValue()) {
+                handleEnvironmentChange(newEnvironment);
+            }
+        }
 
-        // 현재 환경에 따른 위치 업데이트 처리
-        EnvironmentType currentEnv = stateManager.getCurrentEnvironment().getValue();
-        if (currentEnv == EnvironmentType.OUTDOOR ||
-                currentEnv == EnvironmentType.TRANSITION) {
+        if (currentEnvironment.getValue() == EnvironmentType.OUTDOOR) {
             updateCurrentLocation(location);
         }
     }
 
     private void handlePdrLocation(@NonNull LocationData location) {
-        EnvironmentType currentEnv = stateManager.getCurrentEnvironment().getValue();
-        if (currentEnv == EnvironmentType.INDOOR ||
-                currentEnv == EnvironmentType.TRANSITION) {
+        if (currentEnvironment.getValue() == EnvironmentType.INDOOR) {
             updateCurrentLocation(location);
         }
     }
@@ -119,14 +150,12 @@ public class LocationIntegrationManager {
             double filteredLat;
             double filteredLng;
 
-            // PDR 데이터를 기반으로 좌표 계산
             if (location.getProvider().equals("PDR")) {
                 // 초기 GPS 위치를 가져옴
-                LocationData initialLocationData = stateManager.getInitialGpsLocation();
-                if (initialLocationData != null) {
+                if (initialGpsLocation != null) {
                     LatLng initialLatLng = new LatLng(
-                            initialLocationData.getLatitude(),
-                            initialLocationData.getLongitude()
+                            initialGpsLocation.getLatitude(),
+                            initialGpsLocation.getLongitude()
                     );
                     PdrPositionManager pdrManager = new PdrPositionManager(initialLatLng);
 
@@ -144,12 +173,14 @@ public class LocationIntegrationManager {
                     return;
                 }
             } else {
-                // 기존 GPS 데이터의 경우 필터링만 적용
+                // GPS 데이터 필터링
                 filteredLat = locationFilter.filter(location.getLatitude());
                 filteredLng = locationFilter.filter(location.getLongitude());
 
                 // 초기 GPS 위치 설정 (최초 한 번만)
-                stateManager.setInitialGpsLocation(location);
+                if (initialGpsLocation == null) {
+                    initialGpsLocation = location;
+                }
             }
 
             // 필터링된 위치 데이터로 LocationData 생성
@@ -158,51 +189,50 @@ public class LocationIntegrationManager {
                     .altitude(location.getAltitude())
                     .bearing(location.getBearing())
                     .speed(location.getSpeed())
-                    .environment(stateManager.getCurrentEnvironment().getValue())
+                    .environment(currentEnvironment.getValue())
                     .provider(location.getProvider())
-                    .confidence(calculateConfidence(location))
                     .build();
 
-            stateManager.updateLocation(filteredLocation);
+            currentLocation.setValue(filteredLocation);
 
         } catch (Exception e) {
-            Log.e(TAG, "Error updating location", e);
+            Log.e(TAG, "위치 업데이트 중 오류 발생", e);
         }
     }
 
-    private float calculateConfidence(LocationData location) {
-        if (stateManager.getCurrentEnvironment().getValue() == EnvironmentType.OUTDOOR) {
-            float signalStrength = gpsProvider.getCurrentSignalStrength();
-            int satellites = gpsProvider.getVisibleSatellites();
-            return calculateGpsConfidence(signalStrength, satellites, location.getAccuracy());
+    private EnvironmentType determineEnvironment(LocationData location) {
+        // GPS 정확도를 기반으로 환경 판단
+        if (location.getAccuracy() <= 20.0f) {
+            return EnvironmentType.OUTDOOR;
         } else {
-            return calculatePdrConfidence(location);
+            return EnvironmentType.INDOOR;
         }
     }
 
-    private float calculateGpsConfidence(float signalStrength, int satellites, float accuracy) {
-        float signalFactor = Math.max(0f, Math.min(1f, (signalStrength + 160f) / 40f));
-        float satelliteFactor = Math.min(1f, satellites / 8f);
-        float accuracyFactor = Math.max(0f, Math.min(1f, 50f / accuracy));
-        return (signalFactor + satelliteFactor + accuracyFactor) / 3f;
+    private void startIndoorTracking() {
+        gpsProvider.stopTracking();
+        if (currentLocation.getValue() != null) {
+            beaconProvider.setInitialLocation(currentLocation.getValue());
+        }
+        beaconProvider.startTracking();
     }
 
-    private float calculatePdrConfidence(LocationData location) {
-        long timeSinceStart = System.currentTimeMillis() - location.getTimestamp();
-        return Math.max(0.3f, 1f - (timeSinceStart / (5 * 60 * 1000f))); // 5분 기준
+    private void startOutdoorTracking() {
+        beaconProvider.stopTracking();
+        gpsProvider.startTracking();
     }
 
     private void handleGpsProviderDisabled() {
-        Log.w(TAG, "GPS provider disabled");
+        Log.w(TAG, "GPS 제공자가 비활성화되었습니다.");
     }
 
     private void handlePdrProviderDisabled() {
-        Log.w(TAG, "PDR provider disabled");
+        Log.w(TAG, "PDR 제공자가 비활성화되었습니다.");
     }
 
     public void initialize() {
         if (isInitialized.get()) {
-            Log.d(TAG, "Already initialized");
+            Log.d(TAG, "이미 초기화되었습니다.");
             return;
         }
 
@@ -210,9 +240,9 @@ public class LocationIntegrationManager {
             gpsProvider.initialize();
             beaconProvider.initialize();
             isInitialized.set(true);
-            Log.d(TAG, "LocationIntegrationManager initialized successfully");
+            Log.d(TAG, "LocationIntegrationManager 초기화 완료");
         } catch (Exception e) {
-            Log.e(TAG, "Error during initialization", e);
+            Log.e(TAG, "초기화 중 오류 발생", e);
             isInitialized.set(false);
             throw e;
         }
@@ -224,7 +254,7 @@ public class LocationIntegrationManager {
         }
 
         if (isInitialized.get() && !isTracking.getAndSet(true)) {
-            EnvironmentType currentEnv = stateManager.getCurrentEnvironment().getValue();
+            EnvironmentType currentEnv = currentEnvironment.getValue();
             switch (currentEnv) {
                 case INDOOR:
                     startIndoorTracking();
@@ -233,32 +263,9 @@ public class LocationIntegrationManager {
                     startOutdoorTracking();
                     break;
                 case TRANSITION:
-                    startTransitionTracking();
+                    // 전환 상태 처리
                     break;
             }
-        }
-    }
-
-    private void startIndoorTracking() {
-        gpsProvider.stopTracking();
-        LocationData lastLocation = stateManager.getLastKnownLocation().getValue();
-        if (lastLocation != null) {
-            beaconProvider.setInitialLocation(lastLocation);
-        }
-        beaconProvider.startTracking();
-    }
-
-    private void startOutdoorTracking() {
-        beaconProvider.stopTracking();
-        gpsProvider.startTracking();
-    }
-
-    private void startTransitionTracking() {
-        gpsProvider.startTracking();
-        LocationData lastLocation = stateManager.getLastKnownLocation().getValue();
-        if (lastLocation != null) {
-            beaconProvider.setInitialLocation(lastLocation);
-            beaconProvider.startTracking();
         }
     }
 
@@ -277,14 +284,27 @@ public class LocationIntegrationManager {
     }
 
     public LiveData<LocationData> getCurrentLocation() {
-        return stateManager.getLastKnownLocation();
+        return currentLocation;
     }
 
     public LiveData<EnvironmentType> getCurrentEnvironment() {
-        return stateManager.getCurrentEnvironment();
+        return currentEnvironment;
+    }
+
+    public boolean isPdrOperating() {
+        return beaconProvider != null && beaconProvider.isTracking();
+    }
+
+    public boolean isBeaconScanning() {
+        // 비콘 스캔 여부를 반환하는 로직 구현
+        // 비콘 스캔 기능이 없다면 false 반환
+        return false;
     }
 
     public String getStatus() {
-        return stateManager.getStatusInfo();
+        StringBuilder status = new StringBuilder();
+        status.append("현재 환경: ").append(currentEnvironment.getValue()).append("\n");
+        status.append("현재 위치: ").append(currentLocation.getValue()).append("\n");
+        return status.toString();
     }
 }

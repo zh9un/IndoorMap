@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/debug_scroll_view"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:id="@+id/debug_linear_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 실내/실외 전환 스위치 -->
+        <TextView
+            android:id="@+id/environment_switch_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="환경 전환" />
+
+        <Switch
+            android:id="@+id/environment_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textOff="실외"
+            android:textOn="실내" />
+
+        <!-- 현재 상태 표시 -->
+        <TextView
+            android:id="@+id/current_status_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="현재 상태" />
+
+        <TextView
+            android:id="@+id/current_status_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="상태 정보가 여기에 표시됩니다." />
+
+        <!-- PDR 작동 여부 -->
+        <TextView
+            android:id="@+id/pdr_status_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PDR 상태" />
+
+        <TextView
+            android:id="@+id/pdr_status_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PDR 상태 정보가 여기에 표시됩니다." />
+
+        <!-- 비콘 스캔 상태 -->
+        <TextView
+            android:id="@+id/beacon_status_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="비콘 스캔 상태" />
+
+        <TextView
+            android:id="@+id/beacon_status_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="비콘 스캔 상태 정보가 여기에 표시됩니다." />
+
+        <!-- 추가로 필요한 디버그 정보 표시 -->
+
+    </LinearLayout>
+</ScrollView>

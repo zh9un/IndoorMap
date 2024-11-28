@@ -1,6 +1,10 @@
 package com.example.navermapapi.appModule.indoor;
 
 import android.annotation.SuppressLint;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -26,11 +30,13 @@ import com.example.navermapapi.utils.FloorPlanManager;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.geometry.LatLngBounds;
 import com.naver.maps.map.CameraPosition;
+import com.naver.maps.map.CameraUpdate;
 import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.MapFragment;
 import com.naver.maps.map.NaverMap;
 import com.naver.maps.map.OnMapReadyCallback;
 import com.naver.maps.map.overlay.LocationOverlay;
+import com.naver.maps.map.overlay.OverlayImage;
 import com.naver.maps.map.util.FusedLocationSource;
 
 import javax.inject.Inject;
@@ -65,8 +71,8 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
 
         // FloorPlanManager 인스턴스 가져오기
         floorPlanManager = FloorPlanManager.getInstance(requireContext());
+      if (savedInstanceState != null) {
 
-        if (savedInstanceState != null) {
             restoreState(savedInstanceState);
         }
     }
@@ -106,7 +112,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         setupVoiceGuideButton();
         setupAccessibility();
     }
-
     private void setupOverlayControls() {
         binding.overlayOpacitySeekBar.setOnSeekBarChangeListener(
                 new SeekBar.OnSeekBarChangeListener() {
@@ -163,13 +168,11 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         viewModel.getCurrentEnvironment().observe(
                 getViewLifecycleOwner(), this::handleEnvironmentChange);
     }
-
     @Override
     public void onMapReady(@NonNull NaverMap naverMap) {
         this.naverMap = naverMap;
         setupMapSettings(naverMap);
         setupLocationOverlay(naverMap);
-
         // 도면 설정
         setupFloorPlan();
 
@@ -217,7 +220,6 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     }
 
 
-
     private void updateLocationUI(LocationData location) {
         if (location == null || naverMap == null || locationOverlay == null)
             return;
@@ -227,6 +229,15 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
                     location.getLongitude());
             locationOverlay.setPosition(position);
             locationOverlay.setBearing(location.getBearing());
+
+            // 상태에 따라 마커 스타일 변경
+            if (location.getEnvironment() == EnvironmentType.INDOOR) {
+                locationOverlay.setIcon(OverlayImage.fromResource(R.drawable.ic_indoor_location)); // Use an indoor icon
+                locationOverlay.setCircleColor(Color.GREEN); // Change circle color
+            } else {
+                locationOverlay.setIcon(OverlayImage.fromResource(R.drawable.ic_outdoor_location)); // Use an outdoor icon
+                locationOverlay.setCircleColor(Color.BLUE); // Change circle color
+            }
 
             if (viewModel.isAutoTrackingEnabled()) {
                 updateCamera(position, location.getBearing());
@@ -331,6 +342,7 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
     @Override
     public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
+        // 현재 상태 저장
         outState.putInt(KEY_STEP_COUNT, stepCount);
         outState.putFloat(KEY_OVERLAY_OPACITY,
                 binding.overlayOpacitySeekBar.getProgress() / 100.0f);
@@ -343,6 +355,7 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         float opacity = savedState.getFloat(KEY_OVERLAY_OPACITY, FloorPlanConfig.OPACITY);
         float rotation = savedState.getFloat(KEY_OVERLAY_ROTATION, FloorPlanConfig.ROTATION);
 
+        // UI 상태 복원은 View가 생성된 후에 수행
         if (binding != null) {
             binding.overlayOpacitySeekBar.setProgress((int)(opacity * 100));
             binding.overlayRotationSeekBar.setProgress((int)(rotation / 3.6f));

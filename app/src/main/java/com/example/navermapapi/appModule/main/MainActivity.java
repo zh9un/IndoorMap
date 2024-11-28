@@ -8,6 +8,8 @@ import android.provider.Settings;
 import android.util.Log;
 import java.util.Map;
 import android.content.pm.PackageManager;
+import android.widget.Button;
+
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
@@ -24,6 +26,7 @@ import com.example.navermapapi.appModule.location.manager.LocationIntegrationMan
 import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 import com.example.navermapapi.coreModule.api.location.model.LocationData;
 import com.example.navermapapi.databinding.ActivityMainBinding;
+import com.example.navermapapi.debug.DebugFragment;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 
@@ -69,10 +72,35 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
             setupNavigation();
             setupUI();
             setupObservers();
+            setupDebugButton();
         } catch (Exception e) {
             Log.e(TAG, "Error during initialization", e);
             showFatalErrorDialog(e);
         }
+    }
+
+    private void setupDebugButton() {
+        Button debugButton = findViewById(R.id.debug_button);
+        if (debugButton != null) {
+            debugButton.setOnClickListener(v -> {
+                // DebugFragment를 표시합니다.
+                showDebugFragment();
+            });
+        } else {
+            Log.w(TAG, "Debug button not found in layout");
+        }
+    }
+
+    private void showDebugFragment() {
+        // DebugFragment를 생성합니다.
+        DebugFragment debugFragment = new DebugFragment();
+
+        // Fragment를 표시합니다.
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.container, debugFragment)
+                .addToBackStack(null)
+                .commit();
     }
 
     private void initializeBasicComponents() {
