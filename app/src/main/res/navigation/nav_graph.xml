@@ -2,7 +2,20 @@
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/outdoorMapFragment">
+    app:startDestination="@id/outdoorMapFragment">  <!-- 시작점은 기존대로 유지 -->
+
+    <fragment
+        android:id="@+id/customNavigationFragment"
+        android:name="com.example.navermapapi.navigation.CustomNavigationFragment"
+        android:label="실내외 내비게이션" />
+        <action
+            android:id="@+id/action_customNavigation_to_outdoorMap"
+            app:destination="@id/outdoorMapFragment" />
+        <action
+            android:id="@+id/action_customNavigation_to_indoorMap"
+            app:destination="@id/indoorMapFragment" />
+
+
 
     <fragment
         android:id="@+id/outdoorMapFragment"
