@@ -18,6 +18,8 @@ import com.example.navermapapi.databinding.FragmentCustomNavigationBinding;
 import com.example.navermapapi.path.calculator.PathCalculator;
 import com.example.navermapapi.path.drawer.PathDrawer;
 import com.example.navermapapi.path.manager.PathDataManager;
+import com.example.navermapapi.utils.FloorPlanConfig;
+import com.example.navermapapi.utils.FloorPlanManager;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.MapFragment;
@@ -97,6 +99,24 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
         setupLocationOverlay(naverMap);
         setupMapClickListener();
 
+        // 경로 영역 표시
+        pathDrawer.showBoundary(true);
+
+        // Floor Plan 초기화 및 표시
+        try {
+            FloorPlanManager floorPlanManager = FloorPlanManager.getInstance(requireContext());
+            floorPlanManager.initialize(
+                    FloorPlanConfig.RESOURCE_ID,
+                    FloorPlanConfig.CENTER,
+                    FloorPlanConfig.OVERLAY_WIDTH_METERS,
+                    FloorPlanConfig.ROTATION,
+                    0.7f  // 도면 투명도
+            );
+            floorPlanManager.setMap(naverMap);
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting up floor plan", e);
+        }
+
         // 초기 카메라 위치 설정 (전시장 중심)
         naverMap.setCameraPosition(new CameraPosition(
                 new LatLng(37.558347, 127.048963), // 전시장 중심 좌표
@@ -134,6 +154,15 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
     }
 
     private void handleDestinationSelection(LatLng selectedPoint) {
+        // 선택한 지점이 허용된 범위 내에 있는지 확인
+        if (!PathDataManager.isPointInBoundary(selectedPoint)) {
+            voiceGuideManager.announce("선택할 수 없는 위치입니다. 초록색 영역 안에서 선택해주세요.");
+            Toast.makeText(requireContext(),
+                    "허용된 범위 내에서 선택해주세요",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         // 선택된 지점에서 가장 가까운 경로 상의 점 찾기
         LatLng destinationOnPath = PathCalculator.findNearestPointOnPath(selectedPoint);
 
@@ -146,6 +175,7 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
 
         calculateAndShowPath();
     }
+
 
     private void calculateAndShowPath() {
         if (locationOverlay == null || !locationOverlay.isVisible()) {
@@ -184,11 +214,13 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
         super.onDestroyView();
         binding = null;
         if (pathDrawer != null) {
-            pathDrawer.clearPath();
+            pathDrawer.cleanup();
         }
         if (destinationMarker != null) {
             destinationMarker.setMap(null);
         }
+        // Floor Plan cleanup 추가
+        FloorPlanManager.getInstance(requireContext()).cleanup();
     }
 
     @Override

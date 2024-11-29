@@ -152,7 +152,6 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     private void setupUI() {
         setupVoiceGuideButton();
         setupStatusInfo();
-        setupNavigationButtons();
     }
 
     private void setupVoiceGuideButton() {
@@ -372,20 +371,6 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     }
 
 
-    private void setupNavigationButtons() {
-        try {
-            binding.testNavigationButton.setOnClickListener(v -> {
-                try {
-                    Log.d("MainActivity", "Test navigation button clicked");
-                    navController.navigate(R.id.customNavigationFragment);
-                } catch (Exception e) {
-                    Log.e("MainActivity", "Navigation failed", e);
-                    Toast.makeText(this, "내비게이션 전환 중 오류 발생", Toast.LENGTH_SHORT).show();
-                }
-            });
-        } catch (Exception e) {
-            Log.e("MainActivity", "Button setup failed", e);
-        }
-    }
+
 
 }

@@ -13,17 +13,51 @@ public class PathDataManager {
         NODES = new ArrayList<>();
         EDGES = new HashMap<>();
 
-        // 노드 추가 (예시 좌표 사용)
-        NODES.add(new LatLng(37.558347, 127.048963)); // 노드 0
-        NODES.add(new LatLng(37.558347, 127.049163)); // 노드 1
-        NODES.add(new LatLng(37.558547, 127.049163)); // 노드 2
-        NODES.add(new LatLng(37.558547, 127.048963)); // 노드 3
+        // 실제 정보문학관 경로의 주요 노드들 추가
+        NODES.add(new LatLng(37.558396, 127.048793)); // 노드 0: 시작점
+        NODES.add(new LatLng(37.558458, 127.049080)); // 노드 1: 엘베앞
+        NODES.add(new LatLng(37.558352, 127.049129)); // 노드 2: 캡스톤 강의실 반대편
+        NODES.add(new LatLng(37.558338, 127.049084)); // 노드 3: 캡스톤 강의실
+        NODES.add(new LatLng(37.558435, 127.049041)); // 노드 4: 엘베앞보다 안쪽
+        NODES.add(new LatLng(37.558369, 127.048801)); // 노드 5: 시작점의 반대편
 
-        // 간선 추가 (양방향)
-        addEdge(0, 1);
-        addEdge(1, 2);
-        addEdge(2, 3);
-        addEdge(3, 0);
+        // 실제 경로에 맞게 간선 추가 (양방향)
+        addEdge(0, 1); // 시작점 - 엘베앞
+        addEdge(1, 2); // 엘베앞 - 캡스톤 강의실 반대편
+        addEdge(2, 3); // 캡스톤 강의실 반대편 - 캡스톤 강의실
+        addEdge(3, 4); // 캡스톤 강의실 - 엘베앞보다 안쪽
+        addEdge(4, 5); // 엘베앞보다 안쪽 - 시작점의 반대편
+        addEdge(5, 0); // 시작점의 반대편 - 시작점
+    }
+
+
+    // 범위 내에 있는지 확인하는 메서드 추가
+    public static boolean isPointInBoundary(LatLng point) {
+        LatLng[] boundary = {
+                new LatLng(37.558396, 127.048793), // 시작점
+                new LatLng(37.558458, 127.049080), // 엘베앞
+                new LatLng(37.558352, 127.049129), // 캡스톤 강의실 반대편
+                new LatLng(37.558338, 127.049084), // 캡스톤 강의실
+                new LatLng(37.558435, 127.049041), // 엘베앞보다 안쪽
+                new LatLng(37.558369, 127.048801)  // 시작점의 반대편
+        };
+
+        return isPointInPolygon(point, boundary);
+    }
+
+    // 점이 다각형 안에 있는지 확인하는 메서드
+    private static boolean isPointInPolygon(LatLng point, LatLng[] polygon) {
+        int i, j;
+        boolean result = false;
+        for (i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            if ((polygon[i].latitude > point.latitude) != (polygon[j].latitude > point.latitude) &&
+                    (point.longitude < (polygon[j].longitude - polygon[i].longitude) *
+                            (point.latitude - polygon[i].latitude) / (polygon[j].latitude - polygon[i].latitude) +
+                            polygon[i].longitude)) {
+                result = !result;
+            }
+        }
+        return result;
     }
 
     private PathDataManager() {
