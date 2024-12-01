@@ -16,6 +16,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
 import androidx.lifecycle.DefaultLifecycleObserver;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
@@ -92,16 +94,22 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     }
 
     private void showDebugFragment() {
-        // DebugFragment를 생성합니다.
-        DebugFragment debugFragment = new DebugFragment();
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        Fragment existingFragment = fragmentManager.findFragmentByTag("DebugFragment");
 
-        // Fragment를 표시합니다.
-        getSupportFragmentManager()
-                .beginTransaction()
-                .replace(R.id.container, debugFragment)
-                .addToBackStack(null)
-                .commit();
+        if (existingFragment == null) {
+            // DebugFragment를 생성합니다.
+            DebugFragment debugFragment = new DebugFragment();
+
+            // Fragment를 표시합니다.
+            ((FragmentManager) fragmentManager).beginTransaction()
+                    .replace(R.id.container, debugFragment, "DebugFragment")
+                    .commit();
+        } else {
+            Log.d(TAG, "DebugFragment is already displayed.");
+        }
     }
+
 
     private void initializeBasicComponents() {
         binding = ActivityMainBinding.inflate(getLayoutInflater());

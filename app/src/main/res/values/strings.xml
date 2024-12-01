@@ -128,4 +128,23 @@
     <string name="destination_reached">목적지에 도착했습니다</string>
     <string name="select_destination_description">목적지 선택하기</string>
     <string name="current_status_format">현재</string>
+
+    <!-- Debug Fragment 관련 문자열 -->
+    <string name="debug_title">디버그 모드</string>
+    <string name="debug_environment_control">환경 제어</string>
+    <string name="debug_indoor_mode">실내 모드</string>
+    <string name="debug_reset_pdr">PDR 리셋</string>
+    <string name="debug_copy_status">상태 복사</string>
+    <string name="debug_location_info">위치 정보</string>
+    <string name="debug_pdr_status">PDR 상태</string>
+    <string name="debug_beacon_status">비콘 상태</string>
+    <string name="debug_sensor_data">센서 데이터</string>
+    <string name="debug_gps_status">GPS 상태</string>
+
+    <!-- Debug Fragment Toast 메시지 -->
+    <string name="debug_environment_changed">환경을 %s로 전환했습니다.</string>
+    <string name="debug_environment_change_error">환경 전환 중 오류가 발생했습니다.</string>
+    <string name="debug_pdr_reset">PDR 시스템을 리셋했습니다.</string>
+    <string name="debug_pdr_reset_error">PDR 리셋 중 오류가 발생했습니다.</string>
+    <string name="debug_status_copied">디버그 정보가 클립보드에 복사되었습니다.</string>
 </resources>

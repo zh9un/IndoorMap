@@ -32,36 +32,24 @@ public class BeaconLocationProvider {
     private final AtomicBoolean isTracking;
     private volatile boolean isInitialized = false;
 
-    // 지연 초기화를 위한 필드들
+    // 컴포넌트들
     private StepDetector stepDetector;
     private OrientationCalculator orientationCalculator;
     private BeaconScanner beaconScanner;
     private PositionCalculator positionCalculator;
 
+    // 위치 관련 데이터
     private LocationData initialLocation;
+    private LocationData lastLocation;
     private long lastUpdateTime;
-    private double currentX;
-    private double currentY;
+    private double currentX;  // 상대 X 좌표 (미터)
+    private double currentY;  // 상대 Y 좌표 (미터)
 
     @Inject
     public BeaconLocationProvider(@NonNull Context context) {
         this.context = context.getApplicationContext();
         this.callbacks = new CopyOnWriteArrayList<>();
         this.isTracking = new AtomicBoolean(false);
-    }
-
-    private void processPdrData(double offsetX, double offsetY, float estimatedAccuracy) {
-        // PDR 위치 데이터를 생성
-        LocationData pdrLocationData = new LocationData.Builder(0.0, 0.0) // 임시로 0.0 설정
-                .offsetX(offsetX)
-                .offsetY(offsetY)
-                .accuracy(estimatedAccuracy)
-                .provider("PDR")
-                .environment(EnvironmentType.INDOOR)
-                .build();
-
-        // 콜백을 통해 위치 업데이트 알림
-        notifyLocationChanged(pdrLocationData);
     }
 
     public void initialize() {
@@ -71,15 +59,12 @@ public class BeaconLocationProvider {
         }
 
         try {
-            // 컴포넌트 초기화
             this.stepDetector = new StepDetector(context);
             this.orientationCalculator = new OrientationCalculator(context);
             this.beaconScanner = new BeaconScanner(context);
             this.positionCalculator = new PositionCalculator();
 
-            // 콜백 설정
             setupCallbacks();
-
             isInitialized = true;
             Log.d(TAG, "BeaconLocationProvider initialized successfully");
         } catch (Exception e) {
@@ -124,9 +109,9 @@ public class BeaconLocationProvider {
             }
         });
 
-        // 비콘 스캔 콜백
+        // 비콘 감지 콜백
         beaconScanner.addScanCallback(beacons -> {
-            if (isInitialized) {
+            if (isInitialized && beacons != null && !beacons.isEmpty()) {
                 double[] position = positionCalculator.calculatePosition(beacons);
                 if (position != null) {
                     updatePositionWithBeacon(position[0], position[1]);
@@ -141,15 +126,18 @@ public class BeaconLocationProvider {
     }
 
     private void updatePosition(float stepLength) {
+        if (!isInitialized || orientationCalculator == null) return;
+
         float azimuth = orientationCalculator.getCurrentAzimuth();
         double angle = Math.toRadians(azimuth);
 
+        // 상대 좌표 업데이트
         currentX += stepLength * Math.sin(angle);
         currentY += stepLength * Math.cos(angle);
 
-        LocationData newLocation = calculateAbsoluteLocation();
-        if (newLocation != null) {
-            notifyLocationChanged(newLocation);
+        lastLocation = calculateAbsoluteLocation();
+        if (lastLocation != null) {
+            notifyLocationChanged(lastLocation);
         }
     }
 
@@ -158,9 +146,9 @@ public class BeaconLocationProvider {
         currentX = (1 - weight) * currentX + weight * x;
         currentY = (1 - weight) * currentY + weight * y;
 
-        LocationData newLocation = calculateAbsoluteLocation();
-        if (newLocation != null) {
-            notifyLocationChanged(newLocation);
+        lastLocation = calculateAbsoluteLocation();
+        if (lastLocation != null) {
+            notifyLocationChanged(lastLocation);
         }
     }
 
@@ -171,20 +159,26 @@ public class BeaconLocationProvider {
         double lat = initialLocation.getLatitude();
         double lng = initialLocation.getLongitude();
 
+        // 상대 좌표를 위경도로 변환
         double dLat = Math.toDegrees(currentY / EARTH_RADIUS);
         double dLng = Math.toDegrees(currentX /
                 (EARTH_RADIUS * Math.cos(Math.toRadians(lat))));
 
+        float currentAzimuth = orientationCalculator != null ?
+                orientationCalculator.getCurrentAzimuth() : 0f;
+
         return new LocationData.Builder(lat + dLat, lng + dLng)
                 .accuracy(calculateAccuracy())
-                .bearing(orientationCalculator.getCurrentAzimuth())
+                .bearing(currentAzimuth)
                 .environment(EnvironmentType.INDOOR)
                 .provider("PDR")
+                .offsetX(currentX)
+                .offsetY(currentY)
                 .build();
     }
 
     private float calculateAccuracy() {
-        return Math.min(BASE_ACCURACY + (stepDetector.getStepCount() * 0.1f), 10.0f);
+        return Math.min(BASE_ACCURACY + (getStepCount() * 0.1f), 10.0f);
     }
 
     public void startTracking() {
@@ -230,6 +224,7 @@ public class BeaconLocationProvider {
         currentX = 0;
         currentY = 0;
         lastUpdateTime = System.currentTimeMillis();
+        lastLocation = initialLocation;
         notifyLocationChanged(initialLocation);
     }
 
@@ -237,10 +232,36 @@ public class BeaconLocationProvider {
         currentX = 0;
         currentY = 0;
         lastUpdateTime = 0;
+        lastLocation = null;
 
         if (stepDetector != null) stepDetector.destroy();
         if (orientationCalculator != null) orientationCalculator.destroy();
         if (beaconScanner != null) beaconScanner.stopScanning();
+    }
+
+    public int getStepCount() {
+        return stepDetector != null ? stepDetector.getStepCount() : 0;
+    }
+
+    public double getDistanceTraveled() {
+        return Math.sqrt(currentX * currentX + currentY * currentY);
+    }
+
+    public int getBeaconCount() {
+        return beaconScanner != null ? beaconScanner.getDetectedBeaconCount() : 0;
+    }
+
+    public float getCurrentHeading() {
+        return orientationCalculator != null ?
+                orientationCalculator.getCurrentAzimuth() : -1;
+    }
+
+    public LocationData getInitialLocation() {
+        return initialLocation;
+    }
+
+    public LocationData getLastLocation() {
+        return lastLocation;
     }
 
     public void registerLocationCallback(@NonNull LocationCallback callback) {

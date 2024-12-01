@@ -3,12 +3,12 @@ package com.example.navermapapi.beaconModule.internal.beacon;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import androidx.annotation.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import org.altbeacon.beacon.Beacon;
-import org.altbeacon.beacon.BeaconConsumer;
 import org.altbeacon.beacon.BeaconManager;
 import org.altbeacon.beacon.BeaconParser;
 import org.altbeacon.beacon.Region;
@@ -22,6 +22,7 @@ public class BeaconScanner {
     private final BeaconManager beaconManager;
     private final Handler mainHandler;
     private final List<BeaconScanCallback> callbacks;
+    private final List<BeaconData> lastDetectedBeacons;
     private boolean isScanning = false;
 
     public BeaconScanner(@NonNull Context context) {
@@ -29,6 +30,7 @@ public class BeaconScanner {
         this.beaconManager = BeaconManager.getInstanceForApplication(context);
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.callbacks = new ArrayList<>();
+        this.lastDetectedBeacons = new ArrayList<>();
 
         initializeBeaconManager();
     }
@@ -61,8 +63,9 @@ public class BeaconScanner {
             try {
                 beaconManager.startRangingBeacons(new Region("myRangingUniqueId", null, null, null));
                 isScanning = true;
+                Log.d(TAG, "Beacon scanning started");
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Error starting beacon scanning", e);
             }
         }
     }
@@ -71,10 +74,12 @@ public class BeaconScanner {
         if (isScanning) {
             try {
                 beaconManager.stopRangingBeacons(new Region("myRangingUniqueId", null, null, null));
+                isScanning = false;
+                lastDetectedBeacons.clear();
+                Log.d(TAG, "Beacon scanning stopped");
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Error stopping beacon scanning", e);
             }
-            isScanning = false;
         }
     }
 
@@ -88,9 +93,21 @@ public class BeaconScanner {
         callbacks.remove(callback);
     }
 
+    /**
+     * 마지막으로 스캔된 비콘의 수를 반환합니다.
+     * @return 감지된 비콘의 수
+     */
+    public int getDetectedBeaconCount() {
+        return lastDetectedBeacons.size();
+    }
+
     private void notifyBeaconsDetected(List<BeaconData> beacons) {
         mainHandler.post(() -> {
-            for (BeaconScanCallback callback : callbacks) {
+            synchronized (lastDetectedBeacons) {
+                lastDetectedBeacons.clear();
+                lastDetectedBeacons.addAll(beacons);
+            }
+            for (BeaconScanCallback callback : new ArrayList<>(callbacks)) {
                 callback.onBeaconsDetected(beacons);
             }
         });
@@ -98,5 +115,14 @@ public class BeaconScanner {
 
     public interface BeaconScanCallback {
         void onBeaconsDetected(List<BeaconData> beacons);
+    }
+
+    public boolean isScanning() {
+        return isScanning;
+    }
+
+    public void cleanup() {
+        stopScanning();
+        callbacks.clear();
     }
 }
