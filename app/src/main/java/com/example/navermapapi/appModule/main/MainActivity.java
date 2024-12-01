@@ -4,43 +4,42 @@ import android.Manifest;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
-import java.util.Map;
-import android.content.pm.PackageManager;
-import android.widget.Button;
-import android.widget.Toast;
-
+import android.graphics.PorterDuff;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
 import androidx.lifecycle.DefaultLifecycleObserver;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
+import android.content.pm.PackageManager;
+import android.widget.Button;
+import android.widget.Toast;
 
 import com.example.navermapapi.R;
 import com.example.navermapapi.appModule.accessibility.VoiceGuideManager;
 import com.example.navermapapi.appModule.location.manager.LocationIntegrationManager;
+import com.example.navermapapi.constants.ExhibitionConstants;
 import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 import com.example.navermapapi.coreModule.api.location.model.LocationData;
 import com.example.navermapapi.databinding.ActivityMainBinding;
-import com.example.navermapapi.debug.DebugFragment;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
+import com.naver.maps.geometry.LatLng;
 
 import dagger.hilt.android.AndroidEntryPoint;
 import javax.inject.Inject;
+import java.util.Map;
 
 @AndroidEntryPoint
 public class MainActivity extends AppCompatActivity implements DefaultLifecycleObserver {
     private static final String TAG = "MainActivity";
-    private static final int PERMISSION_REQUEST_CODE = 1000;
-
     private static final String[] REQUIRED_PERMISSIONS = {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -51,6 +50,9 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     private ActivityMainBinding binding;
     private NavController navController;
     private boolean isNavigating = false;
+    private boolean isDemoMode = false;
+    private int currentDemoPoint = 0;
+    private final Handler demoHandler = new Handler(Looper.getMainLooper());
 
     @Inject
     LocationIntegrationManager locationManager;
@@ -65,7 +67,6 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         try {
             initializeBasicComponents();
             if (!checkGooglePlayServices()) {
@@ -75,42 +76,11 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
             setupNavigation();
             setupUI();
             setupObservers();
-            setupDebugButton();
         } catch (Exception e) {
             Log.e(TAG, "Error during initialization", e);
             showFatalErrorDialog(e);
         }
     }
-
-    private void setupDebugButton() {
-        Button debugButton = findViewById(R.id.debug_button);
-        if (debugButton != null) {
-            debugButton.setOnClickListener(v -> {
-                // DebugFragment를 표시합니다.
-                showDebugFragment();
-            });
-        } else {
-            Log.w(TAG, "Debug button not found in layout");
-        }
-    }
-
-    private void showDebugFragment() {
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        Fragment existingFragment = fragmentManager.findFragmentByTag("DebugFragment");
-
-        if (existingFragment == null) {
-            // DebugFragment를 생성합니다.
-            DebugFragment debugFragment = new DebugFragment();
-
-            // Fragment를 표시합니다.
-            ((FragmentManager) fragmentManager).beginTransaction()
-                    .replace(R.id.container, debugFragment, "DebugFragment")
-                    .commit();
-        } else {
-            Log.d(TAG, "DebugFragment is already displayed.");
-        }
-    }
-
 
     private void initializeBasicComponents() {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
@@ -122,8 +92,7 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
         int resultCode = apiAvailability.isGooglePlayServicesAvailable(this);
         if (resultCode != ConnectionResult.SUCCESS) {
             if (apiAvailability.isUserResolvableError(resultCode)) {
-                apiAvailability.getErrorDialog(this, resultCode, 9000)
-                        .show();
+                apiAvailability.getErrorDialog(this, resultCode, 9000).show();
             } else {
                 showServiceUnavailableDialog();
             }
@@ -147,112 +116,161 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
             throw new IllegalStateException("NavHostFragment not found");
         }
         navController = navHostFragment.getNavController();
-        setupNavigationCallbacks();
-    }
-
-    private void setupNavigationCallbacks() {
-        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
-            isNavigating = false;
-            Log.d(TAG, "Navigation changed to: " + destination.getLabel());
-        });
     }
 
     private void setupUI() {
+        setupNavigationButton();
         setupVoiceGuideButton();
-        setupStatusInfo();
+        setupDemoButton();
+        setupStatusViews();
     }
 
-    private void setupVoiceGuideButton() {
-        binding.voiceGuideButton.setOnClickListener(v -> {
-            LocationData currentLocation = locationManager.getCurrentLocation().getValue();
-            EnvironmentType environment = locationManager.getCurrentEnvironment().getValue();
-            if (currentLocation != null && environment != null) {
-                voiceGuideManager.announceLocation(currentLocation, environment);
+    private void setupNavigationButton() {
+        binding.navigationButton.setOnClickListener(v -> {
+            if (!isDemoMode) {
+                isNavigating = !isNavigating;
+                updateNavigationState();
             }
         });
     }
 
-    private void setupStatusInfo() {
-        binding.environmentStatus.setContentDescription(
-                getString(R.string.environment_status_description));
-        binding.locationStatus.setContentDescription(
-                getString(R.string.location_status_description));
+    private void setupVoiceGuideButton() {
+        binding.voiceGuideButton.setOnClickListener(v -> {
+            LocationData location = locationManager.getCurrentLocation().getValue();
+            if (location != null) {
+                String description = getLocationDescription(location);
+                voiceGuideManager.announce(description);
+            }
+        });
+    }
+
+    private void setupDemoButton() {
+        binding.demoButton.setOnClickListener(v -> {
+            if (!isDemoMode) {
+                startDemoMode();
+            } else {
+                stopDemoMode();
+            }
+        });
+    }
+
+    private void setupStatusViews() {
+        binding.environmentStatus.setContentDescription(getString(R.string.environment_status_description));
+        binding.locationStatus.setContentDescription(getString(R.string.location_status_description));
     }
 
     private void setupObservers() {
         locationManager.getCurrentLocation().observe(this, this::updateLocationUI);
-        locationManager.getCurrentEnvironment().observe(this, this::handleEnvironmentUpdate);
+        locationManager.getCurrentEnvironment().observe(this, this::updateEnvironmentUI);
     }
 
     private void updateLocationUI(LocationData location) {
         if (location == null) return;
 
-        try {
-            String locationText = String.format(
-                    getString(R.string.location_format),
-                    location.getLatitude(),
-                    location.getLongitude()
-            );
-            binding.locationStatus.setText(locationText);
-            binding.locationStatus.setContentDescription(locationText);
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error updating location UI", e);
-        }
+        String locationText = getLocationDescription(location);
+        binding.locationStatus.setText(locationText);
+        binding.locationStatus.announceForAccessibility(locationText);
     }
 
-    private void handleEnvironmentUpdate(EnvironmentType environment) {
-        if (environment == null || isNavigating) return;
+    private String getLocationDescription(LocationData location) {
+        LatLng point = new LatLng(location.getLatitude(), location.getLongitude());
+        String pointDesc = ExhibitionConstants.getPointDescription(point);
 
-        try {
-            isNavigating = true;
-            updateEnvironmentUI(environment);
-
-            switch (environment) {
-                case INDOOR:
-                    navigateToIndoor();
-                    break;
-                case OUTDOOR:
-                    navigateToOutdoor();
-                    break;
-                case TRANSITION:
-                    isNavigating = false;
-                    break;
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error handling environment update", e);
-            isNavigating = false;
+        if (location.getEnvironment() == EnvironmentType.INDOOR) {
+            return String.format("실내 - %s", pointDesc);
+        } else if (location.getEnvironment() == EnvironmentType.OUTDOOR) {
+            return String.format("실외 - %s", pointDesc);
+        } else {
+            return String.format("전환 중 - %s", pointDesc);
         }
     }
 
     private void updateEnvironmentUI(EnvironmentType environment) {
-        String environmentText = getEnvironmentDescription(environment);
+        if (environment == null) return;
+
+        String environmentText = getEnvironmentText(environment);
+        int backgroundColor = getEnvironmentColor(environment);
+
         binding.environmentStatus.setText(environmentText);
-        binding.environmentStatus.setContentDescription(environmentText);
-    }
+        binding.environmentStatus.getBackground()
+                .setColorFilter(backgroundColor, PorterDuff.Mode.SRC_IN);
 
-    private void navigateToIndoor() {
-        if (navController.getCurrentDestination().getId() != R.id.indoorMapFragment) {
-            navController.navigate(R.id.action_outdoorMap_to_indoorMap);
+        if (!isDemoMode) {
+            voiceGuideManager.announce(String.format("%s 모드입니다", environmentText));
         }
     }
 
-    private void navigateToOutdoor() {
-        if (navController.getCurrentDestination().getId() != R.id.outdoorMapFragment) {
-            navController.navigate(R.id.action_indoorMap_to_outdoorMap);
-        }
-    }
-
-    private String getEnvironmentDescription(EnvironmentType environment) {
+    private String getEnvironmentText(EnvironmentType environment) {
         switch (environment) {
-            case INDOOR:
-                return getString(R.string.environment_indoor);
-            case OUTDOOR:
-                return getString(R.string.environment_outdoor);
-            case TRANSITION:
-                return getString(R.string.environment_transition);
-            default:
-                return getString(R.string.environment_unknown);
+            case INDOOR: return getString(R.string.environment_indoor);
+            case OUTDOOR: return getString(R.string.environment_outdoor);
+            case TRANSITION: return getString(R.string.environment_transition);
+            default: return getString(R.string.environment_unknown);
+        }
+    }
+
+    private int getEnvironmentColor(EnvironmentType environment) {
+        switch (environment) {
+            case INDOOR: return ContextCompat.getColor(this, R.color.environment_indoor);
+            case OUTDOOR: return ContextCompat.getColor(this, R.color.environment_outdoor);
+            case TRANSITION: return ContextCompat.getColor(this, R.color.environment_transition);
+            default: return ContextCompat.getColor(this, R.color.environment_unknown);
+        }
+    }
+
+    private void startDemoMode() {
+        isDemoMode = true;
+        currentDemoPoint = 0;
+        binding.demoButton.setText(R.string.stop_demo);
+        binding.navigationButton.setEnabled(false);
+        updateDemoLocation();
+        Toast.makeText(this, "데모 모드를 시작합니다", Toast.LENGTH_SHORT).show();
+    }
+
+    private void stopDemoMode() {
+        isDemoMode = false;
+        demoHandler.removeCallbacksAndMessages(null);
+        binding.demoButton.setText(R.string.start_demo);
+        binding.navigationButton.setEnabled(true);
+        Toast.makeText(this, "데모 모드를 종료합니다", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateDemoLocation() {
+        if (currentDemoPoint >= ExhibitionConstants.DEMO_PATH.length) {
+            stopDemoMode();
+            voiceGuideManager.announce("목적지에 도착했습니다. 데모를 종료합니다.");
+            return;
+        }
+
+        LatLng currentPoint = ExhibitionConstants.DEMO_PATH[currentDemoPoint];
+        LocationData demoLocation = new LocationData.Builder(
+                currentPoint.latitude,
+                currentPoint.longitude)
+                .accuracy(3.0f)
+                .environment(ExhibitionConstants.getEnvironmentType(currentPoint))
+                .provider("DEMO")  // provider를 "DEMO"로 설정
+                .build();
+
+        // 새로 추가한 메서드 사용
+        locationManager.updateDemoLocation(demoLocation);
+        // 환경 설정도 함께 변경
+        locationManager.forceEnvironment(ExhibitionConstants.getEnvironmentType(currentPoint));
+
+        voiceGuideManager.announce(ExhibitionConstants.getVoiceMessage(currentDemoPoint));
+
+        currentDemoPoint++;
+        if (currentDemoPoint < ExhibitionConstants.DEMO_PATH.length) {
+            demoHandler.postDelayed(this::updateDemoLocation, 5000);
+        }
+    }
+
+    private void updateNavigationState() {
+        if (isNavigating) {
+            binding.navigationButton.setText(R.string.stop_navigation);
+            voiceGuideManager.announce(getString(R.string.navigation_started));
+        } else {
+            binding.navigationButton.setText(R.string.start_navigation);
+            voiceGuideManager.announce(getString(R.string.navigation_stopped));
         }
     }
 
@@ -290,6 +308,8 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
         try {
             locationManager.initialize();
             binding.voiceGuideButton.setEnabled(true);
+            binding.navigationButton.setEnabled(true);
+            binding.demoButton.setEnabled(true);
             startLocationTracking();
         } catch (Exception e) {
             Log.e(TAG, "Error initializing after permissions granted", e);
@@ -343,13 +363,17 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     @Override
     protected void onStart() {
         super.onStart();
-        startLocationTracking();
+        if (!isDemoMode) {
+            startLocationTracking();
+        }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        stopLocationTracking();
+        if (!isDemoMode) {
+            stopLocationTracking();
+        }
     }
 
     @Override
@@ -359,6 +383,7 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     }
 
     private void cleanup() {
+        stopDemoMode();
         if (voiceGuideManager != null) {
             voiceGuideManager.destroy();
         }
@@ -369,16 +394,4 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
             binding = null;
         }
     }
-
-    public void announceVoiceGuide(String message) {
-        if (voiceGuideManager != null) {
-            voiceGuideManager.announce(message);
-        } else {
-            Log.w(TAG, "VoiceGuideManager is not initialized.");
-        }
-    }
-
-
-
-
 }

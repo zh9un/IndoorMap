@@ -31,4 +31,18 @@
 
     <!-- 경고 색상 -->
     <color name="warning_color">#FF5722</color>
+
+    <!-- 환경 상태 색상 (추가) -->
+    <color name="environment_indoor">#4CAF50</color>
+    <color name="environment_outdoor">#2196F3</color>
+    <color name="environment_transition">#FFA000</color>
+    <color name="environment_unknown">#757575</color>
+
+    <!-- 버튼 색상 (추가) -->
+    <color name="button_enabled">#2196F3</color>
+    <color name="button_disabled">#BDBDBD</color>
+
+    <!-- 상태 표시 배경 색상 (추가) -->
+    <color name="status_background">#FFFFFF</color>
+    <color name="status_elevation">#1F000000</color>
 </resources>

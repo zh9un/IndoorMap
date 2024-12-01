@@ -269,4 +269,10 @@ public class LocationIntegrationManager {
     public boolean isTracking() {
         return isTracking.get();
     }
+
+    public void updateDemoLocation(@NonNull LocationData location) {
+        if (location.getProvider().equals("DEMO")) {
+            currentLocation.setValue(location);
+        }
+    }
 }
