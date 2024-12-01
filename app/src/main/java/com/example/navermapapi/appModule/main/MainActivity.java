@@ -9,6 +9,7 @@ import android.util.Log;
 import java.util.Map;
 import android.content.pm.PackageManager;
 import android.widget.Button;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -376,6 +377,8 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
             Log.w(TAG, "VoiceGuideManager is not initialized.");
         }
     }
+
+
 
 
 }
