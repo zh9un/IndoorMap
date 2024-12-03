@@ -18,7 +18,7 @@ import java.util.List;
  * 내비게이션 경로를 지도에 표시하는 클래스
  */
 public class PathDrawer {
-    private static final int PATH_WIDTH = 15;  // 경로선 두께
+    private static final int PATH_WIDTH = 60;  // 경로선 두께
     private static final int PATH_COLOR_INDOOR = Color.GREEN;  // 실내 경로 색상
     private static final int PATH_COLOR_OUTDOOR = Color.BLUE;  // 실외 경로 색상
     private static final int BOUNDARY_COLOR = Color.argb(50, 0, 255, 0);  // 경계선 색상
@@ -47,12 +47,12 @@ public class PathDrawer {
      */
     private void initializeBoundaryOverlay() {
         List<LatLng> coords = Arrays.asList(
-                new LatLng(37.558396, 127.048793), // 시작점
-                new LatLng(37.558458, 127.049080), // 엘베앞
-                new LatLng(37.558352, 127.049129), // 캡스톤 강의실 반대편
-                new LatLng(37.558338, 127.049084), // 캡스톤 강의실
-                new LatLng(37.558435, 127.049041), // 엘베앞보다 안쪽
-                new LatLng(37.558369, 127.048801)  // 시작점의 반대편
+                new LatLng(37.558414, 127.048783), // 시작점
+                new LatLng(37.558500, 127.049097), // 엘베앞
+                new LatLng(37.558372, 127.049145), // 캡스톤 강의실 반대편
+                new LatLng(37.558368, 127.049108), // 캡스톤 강의실
+                new LatLng(37.558465, 127.049065), // 엘베앞보다 안쪽
+                new LatLng(37.558391, 127.048789)  // 시작점의 반대편
         );
 
         boundaryOverlay.setCoords(coords);

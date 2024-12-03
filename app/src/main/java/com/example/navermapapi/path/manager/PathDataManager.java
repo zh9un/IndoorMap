@@ -14,12 +14,12 @@ public class PathDataManager {
         EDGES = new HashMap<>();
 
         // 실제 정보문학관 경로의 주요 노드들 추가
-        NODES.add(new LatLng(37.558396, 127.048793)); // 노드 0: 시작점
-        NODES.add(new LatLng(37.558458, 127.049080)); // 노드 1: 엘베앞
-        NODES.add(new LatLng(37.558352, 127.049129)); // 노드 2: 캡스톤 강의실 반대편
-        NODES.add(new LatLng(37.558338, 127.049084)); // 노드 3: 캡스톤 강의실
-        NODES.add(new LatLng(37.558435, 127.049041)); // 노드 4: 엘베앞보다 안쪽
-        NODES.add(new LatLng(37.558369, 127.048801)); // 노드 5: 시작점의 반대편
+        NODES.add(new LatLng(37.558414, 127.048783)); // 노드 0: 시작점
+        NODES.add(new LatLng(37.558500, 127.049097)); // 노드 1: 엘베앞
+        NODES.add(new LatLng(37.558372, 127.049145)); // 노드 2: 캡스톤 강의실 반대편
+        NODES.add(new LatLng(37.558368, 127.049108)); // 노드 3: 캡스톤 강의실
+        NODES.add(new LatLng(37.558465, 127.049065)); // 노드 4: 엘베앞보다 안쪽
+        NODES.add(new LatLng(37.558391, 127.048789)); // 노드 5: 시작점의 반대편
 
         // 실제 경로에 맞게 간선 추가 (양방향)
         addEdge(0, 1); // 시작점 - 엘베앞
@@ -34,12 +34,12 @@ public class PathDataManager {
     // 범위 내에 있는지 확인하는 메서드 추가
     public static boolean isPointInBoundary(LatLng point) {
         LatLng[] boundary = {
-                new LatLng(37.558396, 127.048793), // 시작점
-                new LatLng(37.558458, 127.049080), // 엘베앞
-                new LatLng(37.558352, 127.049129), // 캡스톤 강의실 반대편
-                new LatLng(37.558338, 127.049084), // 캡스톤 강의실
-                new LatLng(37.558435, 127.049041), // 엘베앞보다 안쪽
-                new LatLng(37.558369, 127.048801)  // 시작점의 반대편
+                new LatLng(37.558414, 127.048783), // 시작점
+                new LatLng(37.558500, 127.049097), // 엘베앞
+                new LatLng(37.558372, 127.049145), // 캡스톤 강의실 반대편
+                new LatLng(37.558368, 127.049108), // 캡스톤 강의실
+                new LatLng(37.558465, 127.049065), // 엘베앞보다 안쪽
+                new LatLng(37.558391, 127.048789)  // 시작점의 반대편
         };
 
         return isPointInPolygon(point, boundary);
