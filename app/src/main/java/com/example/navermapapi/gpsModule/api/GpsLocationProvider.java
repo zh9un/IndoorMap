@@ -43,6 +43,7 @@ public class GpsLocationProvider {
     private float currentSignalStrength = -160f;
     private int visibleSatellites = 0;
 
+    @SuppressLint("MissingPermission")
     @Inject
     public GpsLocationProvider(@ApplicationContext Context context) {
         this.context = context.getApplicationContext();

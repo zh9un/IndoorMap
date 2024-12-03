@@ -1,10 +1,3 @@
-/*
- * 파일명: CustomNavigationFragment.java
- * 경로: com.example.navermapapi.navigation
- * 작성자: Claude
- * 작성일: 2024-01-01
- */
-
 package com.example.navermapapi.navigation;
 
 import android.os.Bundle;
@@ -92,8 +85,6 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
         // 위치 업데이트 관찰
         viewModel.getCurrentLocation().observe(getViewLifecycleOwner(), this::handleLocationUpdate);
 
-        // 환경 변화 관찰
-        viewModel.getCurrentEnvironment().observe(getViewLifecycleOwner(), this::handleEnvironmentChange);
     }
 
     private void initializeMap() {

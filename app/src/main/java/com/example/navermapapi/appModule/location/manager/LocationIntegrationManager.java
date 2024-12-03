@@ -2,13 +2,16 @@ package com.example.navermapapi.appModule.location.manager;
 
 import android.content.Context;
 import android.util.Log;
+
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import dagger.hilt.android.qualifiers.ApplicationContext;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.example.navermapapi.coreModule.api.location.model.LocationData;
@@ -16,10 +19,12 @@ import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 import com.example.navermapapi.coreModule.api.location.callback.LocationCallback;
 import com.example.navermapapi.gpsModule.api.GpsLocationProvider;
 import com.example.navermapapi.beaconModule.api.BeaconLocationProvider;
+import com.example.navermapapi.constants.ExhibitionConstants;
+import com.naver.maps.geometry.LatLng;
 
 @Singleton
 public class LocationIntegrationManager {
-    private static final String TAG = "LocationIntegrationManager";
+    private static final String TAG = "LocationIntegrationMgr";
 
     // 수동 환경 설정 관련 변수
     private boolean isEnvironmentForced = false;
@@ -34,6 +39,10 @@ public class LocationIntegrationManager {
     private final MutableLiveData<EnvironmentType> currentEnvironment;
     private final AtomicBoolean isInitialized;
     private final AtomicBoolean isTracking;
+
+    // 마지막 실내/실외 위치 저장 변수 추가
+    private LocationData lastOutdoorLocation;
+    private LocationData lastIndoorLocation;
 
     @Inject
     public LocationIntegrationManager(
@@ -105,45 +114,45 @@ public class LocationIntegrationManager {
         if (!isEnvironmentForced) {
             EnvironmentType newEnvironment = determineEnvironment(location);
             if (newEnvironment != currentEnvironment.getValue()) {
-                handleEnvironmentChange(newEnvironment);
+                handleEnvironmentChange(newEnvironment, location);
             }
         }
 
         if (currentEnvironment.getValue() == EnvironmentType.OUTDOOR) {
             currentLocation.setValue(location);
+            lastOutdoorLocation = location;
         }
     }
 
     private void handlePdrLocation(@NonNull LocationData location) {
         if (currentEnvironment.getValue() == EnvironmentType.INDOOR) {
             currentLocation.setValue(location);
+            lastIndoorLocation = location;
         }
     }
 
     private EnvironmentType determineEnvironment(LocationData location) {
-        if (location.getAccuracy() <= 20.0f && gpsProvider.getVisibleSatellites() >= 4) {
-            return EnvironmentType.OUTDOOR;
-        } else if (location.getAccuracy() > 50.0f || gpsProvider.getVisibleSatellites() < 3) {
-            return EnvironmentType.INDOOR;
-        }
-        return EnvironmentType.TRANSITION;
+        // GPS 신호 강도와 위성 수를 기반으로 환경 판단
+        float signalStrength = gpsProvider.getCurrentSignalStrength();
+        int visibleSatellites = gpsProvider.getVisibleSatellites();
+        return EnvironmentType.fromGpsSignal(signalStrength, visibleSatellites);
     }
 
     public void forceEnvironment(EnvironmentType environment) {
         isEnvironmentForced = true;
         forcedEnvironment = environment;
-        handleEnvironmentChange(environment);
+        handleEnvironmentChange(environment, null);
     }
 
     public void resetEnvironment() {
         isEnvironmentForced = false;
         LocationData currentLocation = this.currentLocation.getValue();
         if (currentLocation != null) {
-            handleEnvironmentChange(determineEnvironment(currentLocation));
+            handleEnvironmentChange(determineEnvironment(currentLocation), currentLocation);
         }
     }
 
-    private void handleEnvironmentChange(EnvironmentType newEnvironment) {
+    private void handleEnvironmentChange(EnvironmentType newEnvironment, @NonNull LocationData location) {
         EnvironmentType currentEnv = currentEnvironment.getValue();
         if (currentEnv == newEnvironment) return;
 
@@ -151,10 +160,10 @@ public class LocationIntegrationManager {
 
         switch (newEnvironment) {
             case INDOOR:
-                startIndoorTracking();
+                startIndoorTracking(location);
                 break;
             case OUTDOOR:
-                startOutdoorTracking();
+                startOutdoorTracking(location);
                 break;
             case TRANSITION:
                 // 전환 상태에서는 현재 사용 중인 제공자 유지
@@ -162,18 +171,97 @@ public class LocationIntegrationManager {
         }
     }
 
-    private void startIndoorTracking() {
+    private void startIndoorTracking(LocationData gpsLocation) {
         gpsProvider.stopTracking();
-        LocationData lastLocation = currentLocation.getValue();
-        if (lastLocation != null) {
-            beaconProvider.setInitialLocation(lastLocation);
+
+        // 출입구 좌표 기반 위치 보정 로직 구현
+        LatLng entrancePoint = getNearestEntrance(gpsLocation);
+        if (entrancePoint != null) {
+            LocationData entranceLocation = new LocationData.Builder(entrancePoint.latitude, entrancePoint.longitude)
+                    .accuracy(5.0f)
+                    .provider("Entrance")
+                    .environment(EnvironmentType.INDOOR)
+                    .build();
+
+            beaconProvider.setInitialLocation(entranceLocation);
+            currentLocation.setValue(entranceLocation);
+            lastIndoorLocation = entranceLocation;
+        } else if (lastIndoorLocation != null) {
+            beaconProvider.setInitialLocation(lastIndoorLocation);
+            currentLocation.setValue(lastIndoorLocation);
         }
+
         beaconProvider.startTracking();
     }
 
-    private void startOutdoorTracking() {
+    private void startOutdoorTracking(LocationData pdrLocation) {
         beaconProvider.stopTracking();
+
+        // 출입구 좌표 기반 위치 보정 로직 구현
+        LatLng exitPoint = getNearestExit(pdrLocation);
+        if (exitPoint != null) {
+            LocationData exitLocation = new LocationData.Builder(exitPoint.latitude, exitPoint.longitude)
+                    .accuracy(5.0f)
+                    .provider("Exit")
+                    .environment(EnvironmentType.OUTDOOR)
+                    .build();
+            currentLocation.setValue(exitLocation);
+            lastOutdoorLocation = exitLocation;
+        } else if (lastOutdoorLocation != null) {
+            currentLocation.setValue(lastOutdoorLocation);
+        }
+
         gpsProvider.startTracking();
+    }
+
+    private LatLng getNearestEntrance(LocationData gpsLocation) {
+        if (gpsLocation == null) return null;
+
+        LatLng gpsLatLng = new LatLng(gpsLocation.getLatitude(), gpsLocation.getLongitude());
+        LatLng[] entrances = ExhibitionConstants.INDOOR_ENTRANCES;
+
+        LatLng nearestEntrance = null;
+        double minDistance = Double.MAX_VALUE;
+
+        for (LatLng entrance : entrances) {
+            double distance = ExhibitionConstants.calculateDistance(gpsLatLng, entrance);
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestEntrance = entrance;
+            }
+        }
+
+        // 일정 거리 이내일 경우에만 반환
+        if (minDistance < 20.0) {
+            return nearestEntrance;
+        } else {
+            return null;
+        }
+    }
+
+    private LatLng getNearestExit(LocationData pdrLocation) {
+        if (pdrLocation == null) return null;
+
+        LatLng pdrLatLng = new LatLng(pdrLocation.getLatitude(), pdrLocation.getLongitude());
+        LatLng[] exits = ExhibitionConstants.OUTDOOR_EXITS;
+
+        LatLng nearestExit = null;
+        double minDistance = Double.MAX_VALUE;
+
+        for (LatLng exit : exits) {
+            double distance = ExhibitionConstants.calculateDistance(pdrLatLng, exit);
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestExit = exit;
+            }
+        }
+
+        // 일정 거리 이내일 경우에만 반환
+        if (minDistance < 20.0) {
+            return nearestExit;
+        } else {
+            return null;
+        }
     }
 
     public void startTracking() {
@@ -183,10 +271,12 @@ public class LocationIntegrationManager {
 
         if (isInitialized.get() && !isTracking.getAndSet(true)) {
             EnvironmentType currentEnv = currentEnvironment.getValue();
+            LocationData initialLocation = currentLocation.getValue();
+
             if (currentEnv == EnvironmentType.INDOOR) {
-                startIndoorTracking();
+                startIndoorTracking(initialLocation);
             } else {
-                startOutdoorTracking();
+                startOutdoorTracking(initialLocation);
             }
         }
     }

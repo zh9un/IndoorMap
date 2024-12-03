@@ -4,6 +4,20 @@ import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 import com.naver.maps.geometry.LatLng;
 
 public class ExhibitionConstants {
+    // 실내 출입구 좌표 배열
+    public static final LatLng[] INDOOR_ENTRANCES = {
+            new LatLng(37.558458, 127.049080), // 예시: 정보관 입구
+            new LatLng(37.558378, 127.048645),
+            new LatLng(37.558289, 127.049251)
+    };
+
+    // 실외 출구 좌표 배열
+    public static final LatLng[] OUTDOOR_EXITS = {
+            new LatLng(37.558458, 127.049080), // 예시: 정보관 출구
+            new LatLng(37.558378, 127.048645),
+            new LatLng(37.558289, 127.049251)
+    };
+
     // 실외 주요 포인트
     public static final LatLng MAIN_GATE_POINT = new LatLng(37.558396, 127.048793);
     public static final LatLng INFO_BUILDING_ENTRANCE = new LatLng(37.558458, 127.049080);
@@ -89,4 +103,6 @@ public class ExhibitionConstants {
         }
         return EnvironmentType.INDOOR;
     }
+
+
 }

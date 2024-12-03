@@ -110,7 +110,6 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
 
     private void setupObservers() {
         viewModel.getCurrentLocation().observe(getViewLifecycleOwner(), this::updateLocationUI);
-        viewModel.getCurrentEnvironment().observe(getViewLifecycleOwner(), this::handleEnvironmentChange);
         viewModel.getDestination().observe(getViewLifecycleOwner(), this::updateDestinationUI);
     }
 
@@ -221,16 +220,6 @@ public class OutdoorMapFragment extends Fragment implements OnMapReadyCallback {
         return results[0];
     }
 
-    private void handleEnvironmentChange(EnvironmentType environment) {
-        if (environment == EnvironmentType.INDOOR) {
-            navigateToIndoor();
-        }
-    }
-
-    private void navigateToIndoor() {
-        NavController navController = Navigation.findNavController(requireView());
-        navController.navigate(R.id.action_outdoorMap_to_indoorMap);
-    }
 
     private void startDestinationSelection() {
         viewModel.setDestinationSelectionEnabled(true);
