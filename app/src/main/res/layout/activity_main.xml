@@ -56,51 +56,69 @@
             android:id="@+id/location_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="8dp"
             android:textColor="@color/textPrimary"
             android:textSize="16sp"
             tools:text="현재 위치: 정보관 1층 로비" />
 
-    <!-- Control Buttons -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-        <!-- Demo Button -->
-        <Button
-            android:id="@+id/demo_button"
+        <!-- Location Info Text -->
+        <TextView
+            android:id="@+id/locationInfo"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:text="데모 시작"
+            android:textColor="@color/textPrimary"
             android:textSize="16sp" />
 
-        <!-- Navigation Buttons -->
+        <!-- Distance Info Text -->
+        <TextView
+            android:id="@+id/distanceInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:textColor="@color/textPrimary"
+            android:textSize="16sp" />
+
+        <!-- Control Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="vertical">
 
+            <!-- Demo Button -->
             <Button
-                android:id="@+id/voice_guide_button"
-                android:layout_width="0dp"
+                android:id="@+id/demo_button"
+                android:layout_width="match_parent"
                 android:layout_height="56dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:text="@string/voice_guide"
+                android:layout_marginBottom="8dp"
+                android:text="데모 시작"
                 android:textSize="16sp" />
 
-            <Button
-                android:id="@+id/navigation_button"
-                android:layout_width="0dp"
-                android:layout_height="56dp"
-                android:layout_weight="1"
-                android:text="@string/start_navigation"
-                android:textSize="16sp" />
+            <!-- Navigation Buttons -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
 
+                <Button
+                    android:id="@+id/voice_guide_button"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:text="@string/voice_guide"
+                    android:textSize="16sp" />
+
+                <Button
+                    android:id="@+id/navigation_button"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:text="@string/start_navigation"
+                    android:textSize="16sp" />
+
+            </LinearLayout>
         </LinearLayout>
-    </LinearLayout>
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
