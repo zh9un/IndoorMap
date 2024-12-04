@@ -20,56 +20,62 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="@android:color/white"
-        android:elevation="4dp"
-        android:padding="16dp"
-        app:layout_constraintBottom_toTopOf="@id/navigation_controls">
+        android:background="#F5F0FF"
+    android:elevation="8dp"
+    android:padding="20dp"
+    app:layout_constraintBottom_toTopOf="@id/navigation_controls">
 
-        <TextView
-            android:id="@+id/navigation_info"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="16sp"
-            android:textColor="@android:color/black"
-            android:minHeight="36dp"
-            android:gravity="center_vertical"
-            android:contentDescription="@string/navigation_info_description"/>
+    <TextView
+        android:id="@+id/navigation_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="20sp"
+        android:textColor="#1A1A1A"
+    android:minHeight="48dp"
+    android:lineSpacingExtra="8dp"
+    android:gravity="center_vertical"
+    android:contentDescription="@string/navigation_info_description"/>
 
-    </LinearLayout>
+</LinearLayout>
 
     <LinearLayout
         android:id="@+id/navigation_controls"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp"
-        android:background="@android:color/white"
-        android:elevation="4dp"
+        android:padding="24dp"
+        android:background="#FFFFFF"
+        android:elevation="12dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:spacing="16dp">
 
             <Button
                 android:id="@+id/set_destination_button"
                 style="@style/Widget.MaterialComponents.Button"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginEnd="8dp"
-                android:text="@string/set_destination"
-                android:contentDescription="@string/set_destination_description"/>
+                android:layout_height="64dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="16dp"
+            android:textSize="18sp"
+            android:backgroundTint="#6200EE"
+            android:text="@string/set_destination"
+            android:contentDescription="@string/set_destination_description"/>
 
             <Button
                 android:id="@+id/start_navigation_button"
                 style="@style/Widget.MaterialComponents.Button"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/start_navigation"
-                android:contentDescription="@string/start_navigation_description"/>
+                android:layout_height="64dp"
+            android:layout_weight="1"
+            android:textSize="18sp"
+            android:backgroundTint="#6200EE"
+            android:text="@string/start_navigation"
+            android:contentDescription="@string/start_navigation_description"/>
         </LinearLayout>
     </LinearLayout>
 
