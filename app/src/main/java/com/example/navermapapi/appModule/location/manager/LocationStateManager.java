@@ -30,12 +30,17 @@ public class LocationStateManager {
 
     // 상태 전환 관련 상수
     private LocationData initialGpsLocation;
-    private static final float OUTDOOR_SIGNAL_THRESHOLD = -130.0f;  // dBm
-    private static final float INDOOR_SIGNAL_THRESHOLD = -140.0f;   // dBm
-    private static final int MIN_SATELLITES_OUTDOOR = 4;
-    private static final int MIN_SATELLITES_INDOOR = 2;
+    private static final float OUTDOOR_SIGNAL_THRESHOLD = -125.0f;  // dBm
+    private static final float INDOOR_SIGNAL_THRESHOLD = -135.0f;   // dBm
+    private static final int MIN_SATELLITES_OUTDOOR = 6;
+    private static final int MIN_SATELLITES_INDOOR = 3;
     private static final long TRANSITION_HYSTERESIS = TimeUnit.SECONDS.toMillis(10);  // 10초
     private static final int HISTORY_SIZE = 5;  // 상태 이력 크기
+
+    // 추가: 신호 품질 평가를 위한 상수
+    private static final float MIN_HDOP = 1.0f;  // 수평 정밀도 희석도
+    private static final float MAX_HDOP = 5.0f;
+    private static final int SIGNAL_SAMPLES = 5;  // 샘플 수 증가 (3에서 상향)
 
     // 현재 상태
     private final MutableLiveData<EnvironmentType> currentEnvironment;
