@@ -31,6 +31,7 @@ import com.naver.maps.map.overlay.LocationOverlay;
 import com.naver.maps.map.overlay.Marker;
 import com.naver.maps.map.overlay.OverlayImage;
 import com.naver.maps.map.CameraPosition;
+import com.naver.maps.map.CameraUpdate;
 import com.naver.maps.map.util.FusedLocationSource;
 
 import javax.inject.Inject;
@@ -40,9 +41,6 @@ import dagger.hilt.android.AndroidEntryPoint;
 public class CustomNavigationFragment extends Fragment implements OnMapReadyCallback {
     private static final String TAG = "CustomNavigationFragment";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
-
-    // 전시장 중심 좌표
-    private static final LatLng EXHIBITION_CENTER = new LatLng(37.558347, 127.048963);
 
     private FragmentCustomNavigationBinding binding;
     private MainViewModel viewModel;
@@ -82,9 +80,8 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
     }
 
     private void setupObservers() {
-        // 위치 업데이트 관찰
         viewModel.getCurrentLocation().observe(getViewLifecycleOwner(), this::handleLocationUpdate);
-
+        viewModel.getDestination().observe(getViewLifecycleOwner(), this::updateDestinationUI);
     }
 
     private void initializeMap() {
@@ -118,7 +115,7 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
         pathDrawer.showBoundary(true);
 
         // 초기 카메라 위치 설정
-        naverMap.setCameraPosition(new CameraPosition(EXHIBITION_CENTER, 17));
+        naverMap.setCameraPosition(new CameraPosition(FloorPlanConfig.CENTER, 17));
     }
 
     private void initializeFloorPlan() {
@@ -141,7 +138,6 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
     private void setupMapSettings(@NonNull NaverMap naverMap) {
         naverMap.setLocationSource(locationSource);
         naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
-        naverMap.setIndoorEnabled(true);
 
         naverMap.getUiSettings().setZoomControlEnabled(true);
         naverMap.getUiSettings().setLocationButtonEnabled(true);
@@ -151,6 +147,17 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
     private void setupLocationOverlay(@NonNull NaverMap naverMap) {
         locationOverlay = naverMap.getLocationOverlay();
         locationOverlay.setVisible(true);
+        locationOverlay.setCircleRadius(0);  // 정확도 원 숨김
+
+        updateEnvironmentIcon(viewModel.getCurrentEnvironment().getValue());
+    }
+
+    private void updateEnvironmentIcon(EnvironmentType environment) {
+        if (locationOverlay == null) return;
+
+        int iconResource = environment == EnvironmentType.INDOOR ?
+                R.drawable.ic_indoor_location : R.drawable.ic_outdoor_location;
+        locationOverlay.setIcon(OverlayImage.fromResource(iconResource));
     }
 
     private void setupMapClickListener() {
@@ -161,13 +168,6 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
         });
     }
 
-    private void startDestinationMode() {
-        isDestinationMode = true;
-        String message = getString(R.string.select_destination_prompt);
-        voiceGuideManager.announce(message);
-        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
-    }
-
     private void handleLocationUpdate(LocationData location) {
         if (location == null || locationOverlay == null) return;
 
@@ -176,28 +176,30 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
             locationOverlay.setPosition(position);
             locationOverlay.setBearing(location.getBearing());
 
-            if (viewModel.getDestination().getValue() != null) {
-                calculateAndShowPath();
+            updateNavigationInfo();
+
+            if (viewModel.isAutoTrackingEnabled()) {
+                naverMap.moveCamera(CameraUpdate.scrollTo(position));
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error updating location", e);
+            Log.e(TAG, "Error updating location UI", e);
         }
     }
 
-    // FloorPlanManager 메소드 호출 부분 수정
-    private void handleEnvironmentChange(EnvironmentType environment) {
-        try {
-            if (environment == EnvironmentType.INDOOR) {
-                locationOverlay.setIcon(OverlayImage.fromResource(R.drawable.ic_indoor_location));
-                floorPlanManager.setVisible(true);
-            } else {
-                locationOverlay.setIcon(OverlayImage.fromResource(R.drawable.ic_outdoor_location));
-                floorPlanManager.setVisible(false);
-            }
-            pathDrawer.setEnvironment(environment);
-        } catch (Exception e) {
-            Log.e(TAG, "Error handling environment change", e);
+    private void updateNavigationInfo() {
+        LatLng destination = viewModel.getDestination().getValue();
+        LocationData currentLocation = viewModel.getCurrentLocation().getValue();
+
+        if (destination != null && currentLocation != null) {
+            calculateAndShowPath();
         }
+    }
+
+    private void startDestinationMode() {
+        isDestinationMode = true;
+        String message = getString(R.string.select_destination_prompt);
+        voiceGuideManager.announce(message);
+        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
     }
 
     private void handleDestinationSelection(LatLng selectedPoint) {
@@ -238,10 +240,38 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
             double distance = PathCalculator.calculatePathDistance(startOnPath, destination);
             String announcement = getString(R.string.distance_announcement, (int) distance);
             voiceGuideManager.announce(announcement);
-            binding.navigationInfo.setText(announcement);
+
+            updateDistanceTimeInfo(distance);
         } catch (Exception e) {
             Log.e(TAG, "Error calculating path", e);
             voiceGuideManager.announce(getString(R.string.path_calculation_error));
+        }
+    }
+
+    private void updateDistanceTimeInfo(double distance) {
+        // 평균 보행 속도를 기준으로 예상 시간 계산 (4km/h = 1.11m/s)
+        int estimatedSeconds = (int)(distance / 1.11);
+        String timeString = String.format("%d분 %d초", estimatedSeconds / 60, estimatedSeconds % 60);
+
+//        String info = getString(R.string.distance_time_info_format,
+//                (int)distance, timeString);
+//        binding.distanceTimeInfo.setText(info);
+    }
+
+    private void updateDestinationUI(LatLng destination) {
+        clearDestinationMarker();
+
+        if (destination != null) {
+            destinationMarker.setPosition(destination);
+            destinationMarker.setMap(naverMap);
+            calculateAndShowPath();
+        }
+    }
+
+    private void clearDestinationMarker() {
+        destinationMarker.setMap(null);
+        if (pathDrawer != null) {
+            pathDrawer.clearPath();
         }
     }
 
@@ -267,7 +297,8 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
         if (locationSource.onRequestPermissionsResult(requestCode, permissions, grantResults)) {
             if (!locationSource.isActivated()) {

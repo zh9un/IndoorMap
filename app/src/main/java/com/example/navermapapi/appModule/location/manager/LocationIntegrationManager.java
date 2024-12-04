@@ -555,9 +555,19 @@ public class LocationIntegrationManager {
      * 데모 위치 업데이트 (테스트용)
      */
     public void updateDemoLocation(@NonNull LocationData location) {
-        if ("DEMO".equals(location.getProvider())) {
+        Log.d(TAG, "Updating demo location: " + location);
+
+        try {
+            // 환경 변화도 함께 처리
+            EnvironmentType newEnvironment = location.getEnvironment();
+            currentEnvironment.setValue(newEnvironment);
+
+            // 위치 업데이트
             currentLocation.setValue(location);
-            Log.d(TAG, "Demo location updated: " + location);
+
+            Log.d(TAG, "Demo location update successful");
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating demo location", e);
         }
     }
 

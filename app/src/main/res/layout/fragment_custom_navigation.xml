@@ -30,7 +30,7 @@
             android:layout_height="wrap_content"
             android:textSize="16sp"
             android:layout_marginBottom="16dp"
-            android:contentDescription="경로 안내 정보"/>
+            android:contentDescription="@string/navigation_info_description"/>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -39,20 +39,22 @@
 
             <Button
                 android:id="@+id/set_destination_button"
+                style="@style/Widget.MaterialComponents.Button"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginEnd="8dp"
-                android:text="목적지 설정"
-                android:contentDescription="목적지 설정 버튼"/>
+                android:text="@string/set_destination"
+                android:contentDescription="@string/set_destination_description"/>
 
             <Button
                 android:id="@+id/start_navigation_button"
+                style="@style/Widget.MaterialComponents.Button"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="안내 시작"
-                android:contentDescription="안내 시작 버튼"/>
+                android:text="@string/start_navigation"
+                android:contentDescription="@string/start_navigation_description"/>
         </LinearLayout>
     </LinearLayout>
 

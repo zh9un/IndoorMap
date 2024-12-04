@@ -35,6 +35,68 @@ public class ExhibitionConstants {
             EXHIBITION_POINT
     };
 
+    // 실제 데모 시나리오 포인트
+    public static final LatLng HANYANG_GATE = new LatLng(37.558640, 127.050685);  // 한양여대 정문
+    public static final LatLng INFO_ENTRANCE = new LatLng(37.558289, 127.049251); // 정보문화관 출입구
+    public static final LatLng EXHIBITION_HALL = new LatLng(37.558885, 127.048966); // 전시장
+
+    // 데모 경로 좌표
+    public static final DemoPoint[] DEMO_SCENARIOS = {
+            // 정문 시작
+            new DemoPoint(
+                    HANYANG_GATE,
+                    "한양여자대학교 정문입니다.",
+                    EnvironmentType.OUTDOOR
+            ),
+            // 정보문화관 방향 3걸음
+            new DemoPoint(
+                    new LatLng(37.558589, 127.050456),
+                    "약 200걸음 뒤 계단이 있습니다.",
+                    EnvironmentType.OUTDOOR
+            ),
+            // 정보문화관 출입구
+            new DemoPoint(
+                    INFO_ENTRANCE,
+                    "정보문화관 출입구에 도착했습니다. 실내로 진입합니다.",
+                    EnvironmentType.TRANSITION
+            ),
+            // 실내 첫 걸음
+            new DemoPoint(
+                    new LatLng(37.558295, 127.049260),
+                    "현재 3층입니다.",
+                    EnvironmentType.INDOOR
+            ),
+            // 전시장 안내
+            new DemoPoint(
+                    new LatLng(37.558350, 127.049270),
+                    "정면으로 세 걸음 걸은 뒤 오른쪽으로 20걸음 가세요. 전시장입니다.",
+                    EnvironmentType.INDOOR
+            ),
+            // 전시장 도착
+            new DemoPoint(
+                    EXHIBITION_HALL,
+                    "전시장에 도착했습니다.",
+                    EnvironmentType.INDOOR
+            )
+    };
+
+    // 내부 클래스 추가
+    public static class DemoPoint {
+        private final LatLng location;
+        private final String announcement;
+        private final EnvironmentType environment;
+
+        public DemoPoint(LatLng location, String announcement, EnvironmentType environment) {
+            this.location = location;
+            this.announcement = announcement;
+            this.environment = environment;
+        }
+
+        public LatLng getLocation() { return location; }
+        public String getAnnouncement() { return announcement; }
+        public EnvironmentType getEnvironment() { return environment; }
+    }
+
     // 실내외 전환 포인트
     public static final LatLng TRANSITION_POINT = INFO_BUILDING_ENTRANCE;
 
