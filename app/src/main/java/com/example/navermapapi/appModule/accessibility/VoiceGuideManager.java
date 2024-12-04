@@ -18,7 +18,8 @@ import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 @Singleton
 public class VoiceGuideManager implements TextToSpeech.OnInitListener {
     private static final String TAG = "VoiceGuideManager";
-    private static final long MIN_ANNOUNCEMENT_INTERVAL = 5000L;
+    private static final long DEFAULT_ANNOUNCEMENT_INTERVAL = 5000L;  // 5초
+    private static final long NAVIGATION_ANNOUNCEMENT_INTERVAL = 3000L; // 3초
     private static final int CLOCK_POSITIONS = 12;
     private static final String[] CLOCK_DIRECTIONS = {
             "12시", "1시", "2시", "3시", "4시", "5시",
@@ -29,14 +30,19 @@ public class VoiceGuideManager implements TextToSpeech.OnInitListener {
     private final TextToSpeech tts;
     private final AudioManager audioManager;
     private final Handler handler;
+    private final Vibrator vibrator;
+
     private long lastAnnouncementTime = 0;
     private String lastMessage = "";
+    private long currentAnnouncementInterval = DEFAULT_ANNOUNCEMENT_INTERVAL;
+    private boolean isNavigating = false;
 
     @Inject
     public VoiceGuideManager(Context context) {
         this.context = context.getApplicationContext();
         this.tts = new TextToSpeech(context, this);
         this.audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        this.vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         this.handler = new Handler(Looper.getMainLooper());
 
         initializeTTS();
@@ -57,6 +63,13 @@ public class VoiceGuideManager implements TextToSpeech.OnInitListener {
         }
     }
 
+    public void setNavigationMode(boolean enabled) {
+        isNavigating = enabled;
+        currentAnnouncementInterval = enabled ?
+                NAVIGATION_ANNOUNCEMENT_INTERVAL : DEFAULT_ANNOUNCEMENT_INTERVAL;
+        Log.d(TAG, "Navigation mode set to: " + enabled);
+    }
+
     public void announceLocation(LocationData location, EnvironmentType environment) {
         if (!shouldAnnounce()) return;
 
@@ -65,12 +78,14 @@ public class VoiceGuideManager implements TextToSpeech.OnInitListener {
         switch (environment) {
             case INDOOR:
                 buildIndoorMessage(message, location);
+                provideDirectionalHapticFeedback(location.getBearing());
                 break;
             case OUTDOOR:
                 buildOutdoorMessage(message, location);
                 break;
             case TRANSITION:
                 message.append("실내외 전환 구역입니다. 잠시만 기다려주세요.");
+                provideTransitionHapticFeedback();
                 break;
         }
 
@@ -82,16 +97,22 @@ public class VoiceGuideManager implements TextToSpeech.OnInitListener {
         message.append(CLOCK_DIRECTIONS[clockPosition])
                 .append(" 방향으로 이동 중입니다. ");
 
-        // distanceFromStart 대신 현재 위치의 다른 정보를 사용
-        if (location.getAccuracy() <= 10.0f) {  // 정확도가 높을 때만 위치 정보 제공
-            message.append("현재 속도는 ")
-                    .append(String.format("%.1f", location.getSpeed()))
-                    .append("m/s 입니다.");
+        if (location.getSpeed() > 0) {
+            message.append("현재 속도는 분당 ")
+                    .append(String.format("%.0f", location.getSpeed() * 60))
+                    .append("미터입니다. ");
+        }
 
-            if (location.getAltitude() != 0.0f) {
-                message.append(" 고도는 ")
-                        .append(String.format("%.0f", location.getAltitude()))
-                        .append("m 입니다.");
+        // 이동 거리 정보 추가
+        if (location.getOffsetX() != 0 || location.getOffsetY() != 0) {
+            double distance = Math.sqrt(
+                    Math.pow(location.getOffsetX(), 2) +
+                            Math.pow(location.getOffsetY(), 2)
+            );
+            if (distance > 1.0) {
+                message.append("시작 지점에서 ")
+                        .append(String.format("%.0f", distance))
+                        .append("미터 이동했습니다.");
             }
         }
     }
@@ -104,16 +125,51 @@ public class VoiceGuideManager implements TextToSpeech.OnInitListener {
                     .append(String.format("%.0f", distanceToExhibition))
                     .append("미터 앞에 있습니다.");
         }
+
+        // GPS 정확도 정보 추가
+        if (location.getAccuracy() > 0) {
+            message.append(" GPS 정확도는 ")
+                    .append(String.format("%.0f", location.getAccuracy()))
+                    .append("미터입니다.");
+        }
     }
 
     private double calculateDistanceToExhibition(LocationData location) {
-        return 50.0; // 예시 값 - 실제 구현에서는 계산 필요
+        // 실제 구현에서는 전시장 좌표와의 거리 계산
+        return 50.0; // 예시 값
     }
 
     private int getClockPosition(float bearing) {
         int position = Math.round(bearing / (360.0f / CLOCK_POSITIONS)) % CLOCK_POSITIONS;
         if (position < 0) position += CLOCK_POSITIONS;
         return position;
+    }
+
+    private void provideDirectionalHapticFeedback(float bearing) {
+        if (vibrator == null || !vibrator.hasVibrator()) return;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            int intensity = (int)(Math.abs(bearing % 90) / 90f * 255);
+            VibrationEffect effect = VibrationEffect.createOneShot(50, intensity);
+            vibrator.vibrate(effect);
+        } else {
+            vibrator.vibrate(50);
+        }
+    }
+
+    private void provideTransitionHapticFeedback() {
+        if (vibrator == null || !vibrator.hasVibrator()) return;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            VibrationEffect effect = VibrationEffect.createWaveform(
+                    new long[]{0, 100, 100, 100},
+                    new int[]{0, 255, 0, 255},
+                    -1
+            );
+            vibrator.vibrate(effect);
+        } else {
+            vibrator.vibrate(new long[]{0, 100, 100, 100}, -1);
+        }
     }
 
     public void announceEnvironmentChange(EnvironmentType newEnvironment) {
@@ -133,16 +189,15 @@ public class VoiceGuideManager implements TextToSpeech.OnInitListener {
 
     private boolean shouldAnnounce() {
         long currentTime = System.currentTimeMillis();
-        return currentTime - lastAnnouncementTime >= MIN_ANNOUNCEMENT_INTERVAL;
+        return currentTime - lastAnnouncementTime >= currentAnnouncementInterval;
     }
 
     public void announce(String message) {
-        if (message == null || message.isEmpty()) return;
-
         announce(message, false);
     }
 
     private void announce(String message, boolean priority) {
+        if (message == null || message.isEmpty()) return;
         if (!priority && !shouldAnnounce()) return;
         if (message.equals(lastMessage)) return;
 
@@ -156,17 +211,8 @@ public class VoiceGuideManager implements TextToSpeech.OnInitListener {
         } else {
             tts.speak(message, TextToSpeech.QUEUE_FLUSH, null);
         }
-    }
 
-    public void provideHapticFeedback() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Vibrator vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
-            VibrationEffect effect = VibrationEffect.createOneShot(
-                    100,
-                    VibrationEffect.DEFAULT_AMPLITUDE
-            );
-            vibrator.vibrate(effect);
-        }
+        Log.d(TAG, "Announced: " + message);
     }
 
     public void destroy() {
