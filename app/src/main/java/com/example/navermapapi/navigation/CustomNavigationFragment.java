@@ -81,6 +81,10 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
         setupObservers();
     }
 
+    public NaverMap getNaverMap() {
+        return naverMap;
+    }
+
     private void setupObservers() {
         viewModel.getCurrentLocation().observe(getViewLifecycleOwner(), this::handleLocationUpdate);
         viewModel.getCurrentEnvironment().observe(getViewLifecycleOwner(), environment -> {
@@ -141,20 +145,40 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
     }
 
     private void setupMapSettings(@NonNull NaverMap naverMap) {
-        naverMap.setLocationSource(locationSource);
-        naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
+        // 데모 모드 체크를 ViewModel을 통해 수행
+        boolean isDemoMode = viewModel.isDemoMode().getValue() != null &&
+                viewModel.isDemoMode().getValue();
+
+        if (!isDemoMode) {
+            naverMap.setLocationSource(locationSource);
+            naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
+        } else {
+            // 데모 모드에서는 위치 소스 비활성화
+            naverMap.setLocationSource(null);
+            naverMap.setLocationTrackingMode(LocationTrackingMode.None);
+        }
 
         naverMap.getUiSettings().setZoomControlEnabled(true);
-        naverMap.getUiSettings().setLocationButtonEnabled(true);
+        naverMap.getUiSettings().setLocationButtonEnabled(!isDemoMode);  // 데모 모드에서는 위치 버튼도 비활성화
         naverMap.getUiSettings().setCompassEnabled(true);
     }
 
     private void setupLocationOverlay(@NonNull NaverMap naverMap) {
         locationOverlay = naverMap.getLocationOverlay();
-        locationOverlay.setVisible(true);
+        locationOverlay.setVisible(true);  // 명시적으로 visible 설정
         locationOverlay.setCircleRadius(0);  // 정확도 원 숨김
 
-        updateEnvironmentIcon(viewModel.getCurrentEnvironment().getValue());
+        // 초기 환경 설정
+        EnvironmentType currentEnv = viewModel.getCurrentEnvironment().getValue();
+        updateEnvironmentIcon(currentEnv);
+
+        // 초기 위치가 있다면 설정
+        LocationData currentLocation = viewModel.getCurrentLocation().getValue();
+        if (currentLocation != null) {
+            LatLng position = new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude());
+            locationOverlay.setPosition(position);
+            locationOverlay.setBearing(currentLocation.getBearing());
+        }
     }
 
     private void updateEnvironmentIcon(EnvironmentType environment) {
@@ -181,6 +205,11 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
             locationOverlay.setPosition(position);
             locationOverlay.setBearing(location.getBearing());
 
+            // isDemoMode일 때는 네이버맵의 위치 소스는 null이지만,
+            // locationOverlay는 보이도록 설정
+            locationOverlay.setVisible(true);  // 이 줄 추가
+
+            updateEnvironmentIcon(location.getEnvironment());  // 환경에 따른 아이콘 업데이트
             updateNavigationInfo();
 
             if (viewModel.isAutoTrackingEnabled()) {
@@ -196,17 +225,59 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
 
         StringBuilder info = new StringBuilder();
 
-        // 현재 위치
+        // 현재 환경 상태 확인
+        EnvironmentType environment = viewModel.getCurrentEnvironment().getValue();
         LocationData location = viewModel.getCurrentLocation().getValue();
-        if (location != null) {
+
+        if (environment == EnvironmentType.INDOOR && location != null) {
+            // 실내 모드일 때의 상세 정보
+            info.append("실내 이동 중\n");
+
+            // 방향 정보 (시계 방향으로 표시)
+            float bearing = location.getBearing();
+            String direction = getClockDirection(bearing);
+            info.append(direction).append(" 방향으로 이동 중\n");
+
+            // 시작점으로부터의 이동 거리
+            double distance = Math.sqrt(
+                    Math.pow(location.getOffsetX(), 2) +
+                            Math.pow(location.getOffsetY(), 2)
+            );
             info.append(String.format(Locale.getDefault(),
-                    "현재 위치: %.6f, %.6f\n",
-                    location.getLatitude(),
-                    location.getLongitude()));
+                    "시작 지점으로부터 %.1fm 이동\n", distance));
+
+            // 목적지가 설정되어 있다면 목적지까지의 거리도 표시
+            LatLng destination = viewModel.getDestination().getValue();
+            if (destination != null) {
+                double remainingDistance = PathCalculator.calculatePathDistance(
+                        new LatLng(location.getLatitude(), location.getLongitude()),
+                        destination
+                );
+                info.append(String.format(Locale.getDefault(),
+                        "목적지까지 %.1fm 남음", remainingDistance));
+            }
+        } else {
+            // 실외 모드일 때는 기본 위치 정보만 표시
+            if (location != null) {
+                info.append(String.format(Locale.getDefault(),
+                        "현재 위치: %.6f, %.6f",
+                        location.getLatitude(),
+                        location.getLongitude()));
+            }
         }
 
         binding.navigationInfo.setText(info.toString());
         Log.d(TAG, "Navigation info updated: " + info.toString());
+    }
+
+    /**
+     * 방위각을 시계 방향으로 변환
+     */
+    private String getClockDirection(float bearing) {
+        // 방위각을 시계 방향(12시 방향 = 0도)으로 변환
+        int hour = Math.round(bearing / 30) % 12;  // 360도를 12시간으로 나눔
+        if (hour == 0) hour = 12;
+        return String.format(Locale.getDefault(), "%d시 방향", hour);
     }
 
     private String getEnvironmentText(EnvironmentType environment) {

@@ -31,7 +31,7 @@
             android:layout_height="wrap_content"
             android:textSize="16sp"
             android:textColor="@android:color/black"
-            android:minHeight="48dp"
+            android:minHeight="36dp"
             android:gravity="center_vertical"
             android:contentDescription="@string/navigation_info_description"/>
 

@@ -4,6 +4,14 @@ import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 import com.naver.maps.geometry.LatLng;
 
 public class ExhibitionConstants {
+    public static final float PDR_STEP_LENGTH = 0.7f;  // 평균 보폭
+    public static final float[] DEMO_BEARINGS = {  // 시연용 방향각
+            0.0f,    // 북쪽
+            45.0f,   // 북동쪽
+            90.0f,   // 동쪽
+            135.0f,  // 남동쪽
+            180.0f   // 남쪽
+    };
     // 실내 출입구 좌표 배열
     public static final LatLng[] INDOOR_ENTRANCES = {
             new LatLng(37.558458, 127.049080), // 예시: 정보관 입구
@@ -38,7 +46,7 @@ public class ExhibitionConstants {
     // 실제 데모 시나리오 포인트
     public static final LatLng HANYANG_GATE = new LatLng(37.558640, 127.050685);  // 한양여대 정문
     public static final LatLng INFO_ENTRANCE = new LatLng(37.558289, 127.049251); // 정보문화관 출입구
-    public static final LatLng EXHIBITION_HALL = new LatLng(37.558885, 127.048966); // 전시장
+    public static final LatLng EXHIBITION_HALL = new LatLng(37.558425, 127.048765); // 전시장
 
     // 데모 경로 좌표
     public static final DemoPoint[] DEMO_SCENARIOS = {
@@ -46,38 +54,38 @@ public class ExhibitionConstants {
             new DemoPoint(
                     HANYANG_GATE,
                     "한양여자대학교 정문입니다.",
-                    EnvironmentType.OUTDOOR
-            ),
+                    EnvironmentType.OUTDOOR,
+                    0, 0, 0),
             // 정보문화관 방향 3걸음
             new DemoPoint(
                     new LatLng(37.558589, 127.050456),
                     "약 200걸음 뒤 계단이 있습니다.",
-                    EnvironmentType.OUTDOOR
-            ),
+                    EnvironmentType.OUTDOOR,
+                    0, 0, 0),
             // 정보문화관 출입구
             new DemoPoint(
                     INFO_ENTRANCE,
                     "정보문화관 출입구에 도착했습니다. 실내로 진입합니다.",
-                    EnvironmentType.TRANSITION
-            ),
+                    EnvironmentType.TRANSITION,
+                    0, 0, 0),
             // 실내 첫 걸음
             new DemoPoint(
-                    new LatLng(37.558295, 127.049260),
+                    new LatLng(37.558519, 127.049085),
                     "현재 3층입니다.",
-                    EnvironmentType.INDOOR
-            ),
+                    EnvironmentType.INDOOR,
+                    2.0, 1.5, 90.0f),  // 동쪽 방향으로 이동
             // 전시장 안내
             new DemoPoint(
-                    new LatLng(37.558350, 127.049270),
-                    "정면으로 세 걸음 걸은 뒤 오른쪽으로 20걸음 가세요. 전시장입니다.",
-                    EnvironmentType.INDOOR
-            ),
+                    new LatLng(37.558505, 127.049109),
+                    "정면으로 세 걸음 걸은 뒤 오른쪽으로 20걸음 가세요.",
+                    EnvironmentType.INDOOR,
+                    5.0, 3.0, 135.0f),  // 남동쪽 방향으로 이동
             // 전시장 도착
             new DemoPoint(
                     EXHIBITION_HALL,
                     "전시장에 도착했습니다.",
-                    EnvironmentType.INDOOR
-            )
+                    EnvironmentType.INDOOR,
+                    8.0, 5.0, 180.0f)  // 남쪽을 향해 도착
     };
 
     // 내부 클래스 추가
@@ -85,16 +93,26 @@ public class ExhibitionConstants {
         private final LatLng location;
         private final String announcement;
         private final EnvironmentType environment;
+        private final double offsetX;
+        private final double offsetY;
+        private final float bearing;
 
-        public DemoPoint(LatLng location, String announcement, EnvironmentType environment) {
+        public DemoPoint(LatLng location, String announcement, EnvironmentType environment,
+                         double offsetX, double offsetY, float bearing) {
             this.location = location;
             this.announcement = announcement;
             this.environment = environment;
+            this.offsetX = offsetX;
+            this.offsetY = offsetY;
+            this.bearing = bearing;
         }
 
         public LatLng getLocation() { return location; }
         public String getAnnouncement() { return announcement; }
         public EnvironmentType getEnvironment() { return environment; }
+        public double getOffsetX() { return offsetX; }
+        public double getOffsetY() { return offsetY; }
+        public float getBearing() { return bearing; }
     }
 
     // 실내외 전환 포인트
@@ -103,7 +121,7 @@ public class ExhibitionConstants {
     // 경로 설명
     public static final String[] PATH_DESCRIPTIONS = {
             "정문",
-            "정보관 입구",
+            "정보문화관 입구",
             "1층 로비",
             "전시장"
     };
@@ -111,7 +129,7 @@ public class ExhibitionConstants {
     // 주요 음성 안내 메시지
     public static final String[] VOICE_MESSAGES = {
             "정문에서 출발합니다.",
-            "정보관 입구에 도착했습니다. 실내로 진입합니다.",
+            "정보문화관 입구에 도착했습니다. 실내로 진입합니다.",
             "1층 로비에 도착했습니다. 전시장 방향으로 이동하세요.",
             "전시장에 도착했습니다."
     };

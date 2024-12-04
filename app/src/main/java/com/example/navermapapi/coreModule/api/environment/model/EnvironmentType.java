@@ -5,8 +5,8 @@ public enum EnvironmentType {
     INDOOR("실내"),
     TRANSITION("전환 중");
 
-    private static final float OUTDOOR_THRESHOLD = -120.0f;  // dBm
-    private static final float INDOOR_THRESHOLD = -140.0f;   // dBm
+    private static final float OUTDOOR_THRESHOLD = -115.0f;  // dBm
+    private static final float INDOOR_THRESHOLD = -135.0f;   // dBm
     private static final int MIN_SATELLITES = 4;
 
     private final String description;

@@ -29,11 +29,13 @@ import com.example.navermapapi.constants.ExhibitionConstants;
 import com.example.navermapapi.coreModule.api.environment.model.EnvironmentType;
 import com.example.navermapapi.coreModule.api.location.model.LocationData;
 import com.example.navermapapi.databinding.ActivityMainBinding;
+import com.example.navermapapi.navigation.CustomNavigationFragment;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.map.CameraAnimation;
 import com.naver.maps.map.CameraUpdate;
+import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.NaverMap;
 
 import dagger.hilt.android.AndroidEntryPoint;
@@ -165,7 +167,7 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
         if (location == null) return;
         String locationText = getString(R.string.current_location_format,
                 location.getLatitude(), location.getLongitude());
-        binding.locationInfo.setText(locationText);
+//        binding.locationInfo.setText(locationText);
     }
 
     private void updateEnvironmentInfo(EnvironmentType environment) {
@@ -176,11 +178,11 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
 
         switch (environment) {
             case INDOOR:
-                environmentText = "실내 모드";
+                environmentText = "실내";
                 backgroundColor = ContextCompat.getColor(this, R.color.environment_indoor);
                 break;
             case OUTDOOR:
-                environmentText = "실외 모드";
+                environmentText = "실외";
                 backgroundColor = ContextCompat.getColor(this, R.color.environment_outdoor);
                 break;
             case TRANSITION:
@@ -217,8 +219,23 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
         isDemoMode = true;
         currentDemoPoint = 0;
         binding.demoButton.setText(R.string.stop_demo);
-//        binding.setDestinationButton.setEnabled(false);
-//        binding.startNavigationButton.setEnabled(false);
+
+        // NaverMap 위치 추적 비활성화
+        if (navController.getCurrentDestination().getId() == R.id.customNavigationFragment) {
+            CustomNavigationFragment currentFragment =
+                    (CustomNavigationFragment) getSupportFragmentManager()
+                            .findFragmentById(R.id.nav_host_fragment)
+                            .getChildFragmentManager()
+                            .getFragments()
+                            .get(0);
+
+            if (currentFragment != null && currentFragment.getNaverMap() != null) {
+                NaverMap naverMap = currentFragment.getNaverMap();
+                naverMap.setLocationSource(null);
+                naverMap.setLocationTrackingMode(LocationTrackingMode.None);
+            }
+        }
+
         updateDemoLocation();
         voiceGuideManager.announce("데모 모드를 시작합니다");
     }
@@ -227,8 +244,12 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
         isDemoMode = false;
         demoHandler.removeCallbacksAndMessages(null);
         binding.demoButton.setText(R.string.start_demo);
-//        binding.setDestinationButton.setEnabled(true);
-//        binding.startNavigationButton.setEnabled(true);
+
+        // 데모 모드 종료 시, Fragment를 다시 생성하여 초기 상태로 복원
+        if (navController.getCurrentDestination().getId() == R.id.customNavigationFragment) {
+            navController.navigate(R.id.customNavigationFragment);
+        }
+
         voiceGuideManager.announce("데모 모드를 종료합니다");
     }
 
@@ -241,12 +262,27 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
 
         ExhibitionConstants.DemoPoint demoPoint = ExhibitionConstants.DEMO_SCENARIOS[currentDemoPoint];
 
+        // PDR 오프셋 정보 추가 (실내일 때의 상대 좌표)
+        double offsetX = 0;
+        double offsetY = 0;
+        float bearing = 0;
+
+        if (demoPoint.getEnvironment() == EnvironmentType.INDOOR) {
+            // 순차적으로 증가하는 오프셋 설정
+            offsetX = 2.0 * currentDemoPoint;  // 매 포인트마다 2m씩 이동
+            offsetY = 1.5 * currentDemoPoint;  // 매 포인트마다 1.5m씩 이동
+            bearing = 45.0f * currentDemoPoint % 360;  // 45도씩 회전
+        }
+
         LocationData demoLocation = new LocationData.Builder(
                 demoPoint.getLocation().latitude,
                 demoPoint.getLocation().longitude)
                 .accuracy(3.0f)
                 .environment(demoPoint.getEnvironment())
                 .provider("DEMO")
+                .bearing(bearing)
+                .offsetX(offsetX)  // PDR 오프셋 추가
+                .offsetY(offsetY)  // PDR 오프셋 추가
                 .build();
 
         locationManager.updateDemoLocation(demoLocation);
