@@ -2,13 +2,14 @@
  * 파일명: LocationStateManager.java
  * 경로: com.example.navermapapi.appModule.location.manager
  * 작성자: Claude
- * 작성일: 2024-11-28
+ * 작성일: 2024-01-04
  */
 
 package com.example.navermapapi.appModule.location.manager;
 
 import android.util.Log;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
@@ -22,6 +23,7 @@ import java.util.concurrent.TimeUnit;
  * - 실내외 전환 판단 로직
  * - 히스테리시스 기반 상태 안정화
  * - 전환 이력 관리
+ * - GPS/PDR 모드 전환
  */
 public class LocationStateManager {
     private static final String TAG = "LocationStateManager";
@@ -38,12 +40,17 @@ public class LocationStateManager {
     // 현재 상태
     private final MutableLiveData<EnvironmentType> currentEnvironment;
     private final MutableLiveData<LocationData> lastKnownLocation;
+    private final MutableLiveData<Boolean> isIndoorMode;
 
     // 상태 전환 이력
     private final CircularBuffer<StateTransition> transitionHistory;
     private long lastTransitionTime;
     private float signalStrengthAccumulator;
     private int samplesCount;
+
+    // 마지막 유효 위치 정보
+    private LocationData lastValidGpsLocation;
+    private LocationData lastValidPdrLocation;
 
     /**
      * 상태 전환 정보를 저장하는 내부 클래스
@@ -62,10 +69,18 @@ public class LocationStateManager {
             this.signalStrength = signal;
             this.satellites = sats;
         }
+
+        @Override
+        @NonNull
+        public String toString() {
+            return String.format("Transition{%s -> %s, signal=%.1f, sats=%d, time=%d}",
+                    fromState, toState, signalStrength, satellites, timestamp);
+        }
     }
 
     /**
      * 순환 버퍼 구현
+     * 상태 전환 이력을 저장하기 위한 고정 크기 버퍼
      */
     private static class CircularBuffer<T> {
         private final T[] buffer;
@@ -86,22 +101,103 @@ public class LocationStateManager {
         T[] getAll() {
             return buffer;
         }
+
+        void clear() {
+            for (int i = 0; i < size; i++) {
+                buffer[i] = null;
+            }
+            writeIndex = 0;
+        }
     }
 
     public LocationStateManager() {
         this.currentEnvironment = new MutableLiveData<>(EnvironmentType.OUTDOOR);
         this.lastKnownLocation = new MutableLiveData<>();
+        this.isIndoorMode = new MutableLiveData<>(false);
         this.transitionHistory = new CircularBuffer<>(HISTORY_SIZE);
         this.lastTransitionTime = 0L;
         this.signalStrengthAccumulator = 0f;
         this.samplesCount = 0;
+
+        Log.d(TAG, "LocationStateManager initialized");
+    }
+
+    /**
+     * 실내 모드 설정
+     * @param indoor true이면 실내 모드, false이면 실외 모드
+     */
+    public void setIndoorMode(boolean indoor) {
+        if (indoor != isIndoorMode.getValue()) {
+            isIndoorMode.setValue(indoor);
+            if (indoor) {
+                // 마지막 유효 GPS 위치 저장
+                LocationData current = lastKnownLocation.getValue();
+                if (current != null && "GPS".equals(current.getProvider())) {
+                    lastValidGpsLocation = current;
+                    Log.d(TAG, "Stored last valid GPS location: " + lastValidGpsLocation);
+                }
+            } else {
+                // 마지막 유효 PDR 위치 저장
+                LocationData current = lastKnownLocation.getValue();
+                if (current != null && "PDR".equals(current.getProvider())) {
+                    lastValidPdrLocation = current;
+                    Log.d(TAG, "Stored last valid PDR location: " + lastValidPdrLocation);
+                }
+            }
+            Log.d(TAG, "Indoor mode changed to: " + indoor);
+        }
+    }
+
+    /**
+     * 현재 실내 모드 상태 관찰을 위한 LiveData 반환
+     */
+    public LiveData<Boolean> getIndoorMode() {
+        return isIndoorMode;
+    }
+
+    /**
+     * 마지막 유효 GPS 위치 반환
+     */
+    @Nullable
+    public LocationData getLastValidGpsLocation() {
+        return lastValidGpsLocation;
+    }
+
+    /**
+     * 마지막 유효 PDR 위치 반환
+     */
+    @Nullable
+    public LocationData getLastValidPdrLocation() {
+        return lastValidPdrLocation;
+    }
+
+    /**
+     * 초기 GPS 위치를 설정 (최초 한 번만 저장)
+     */
+    public void setInitialGpsLocation(@NonNull LocationData location) {
+        if (initialGpsLocation == null && "GPS".equals(location.getProvider())) {
+            initialGpsLocation = location;
+            Log.d(TAG, "Initial GPS location set: " + location);
+        }
+    }
+
+    /**
+     * 초기 GPS 위치 반환
+     */
+    @Nullable
+    public LocationData getInitialGpsLocation() {
+        return initialGpsLocation;
     }
 
     /**
      * GPS 신호 강도 업데이트 및 환경 판단
+     * 실내 모드일 때는 GPS 신호 처리하지 않음
      */
     public void updateSignalStrength(float signalStrength, int satellites) {
-        // 이동 평균 계산
+        if (Boolean.TRUE.equals(isIndoorMode.getValue())) {
+            return;  // 실내 모드에서는 GPS 신호 무시
+        }
+
         signalStrengthAccumulator += signalStrength;
         samplesCount++;
 
@@ -114,24 +210,6 @@ public class LocationStateManager {
             samplesCount = 0;
         }
     }
-
-    /**
-     * 초기 GPS 위치를 설정합니다 (최초 한 번만 저장)
-     */
-    public void setInitialGpsLocation(@NonNull LocationData location) {
-        if (initialGpsLocation == null && location.getProvider().equals("GPS")) {
-            initialGpsLocation = location;
-            Log.d(TAG, "Initial GPS location set.");
-        }
-    }
-
-    /**
-     * 초기 GPS 위치를 반환합니다
-     */
-    public LocationData getInitialGpsLocation() {
-        return initialGpsLocation;
-    }
-
 
     /**
      * 환경 상태 평가 및 전환 처리
@@ -224,13 +302,29 @@ public class LocationStateManager {
                 fromState, toState, signalStrength, satellites));
 
         currentEnvironment.setValue(toState);
+        setIndoorMode(toState == EnvironmentType.INDOOR);
     }
 
     /**
-     * 마지막 위치 정보 업데이트
+     * 위치 정보 업데이트
      */
     public void updateLocation(@NonNull LocationData location) {
+        boolean indoor = Boolean.TRUE.equals(isIndoorMode.getValue());
+
+        // 실내 모드일 때는 GPS 데이터 무시
+        if (indoor && "GPS".equals(location.getProvider())) {
+            Log.d(TAG, "Ignoring GPS location in indoor mode: " + location);
+            return;
+        }
+
+        // 실외 모드일 때는 PDR 데이터 무시
+        if (!indoor && "PDR".equals(location.getProvider())) {
+            Log.d(TAG, "Ignoring PDR location in outdoor mode: " + location);
+            return;
+        }
+
         lastKnownLocation.setValue(location);
+        Log.d(TAG, "Location updated: " + location);
     }
 
     /**
@@ -253,9 +347,28 @@ public class LocationStateManager {
     @NonNull
     public String getStatusInfo() {
         LocationData location = lastKnownLocation.getValue();
-        return String.format("Environment: %s, Location: %s, Last Transition: %d ms ago",
+        return String.format("Environment: %s, Indoor: %s, Location: %s, Last Transition: %d ms ago",
                 currentEnvironment.getValue(),
+                isIndoorMode.getValue(),
                 location != null ? location.toString() : "unknown",
                 System.currentTimeMillis() - lastTransitionTime);
+    }
+
+    /**
+     * 모든 상태 초기화
+     */
+    public void reset() {
+        currentEnvironment.setValue(EnvironmentType.OUTDOOR);
+        isIndoorMode.setValue(false);
+        lastKnownLocation.setValue(null);
+        initialGpsLocation = null;
+        lastValidGpsLocation = null;
+        lastValidPdrLocation = null;
+        transitionHistory.clear();
+        lastTransitionTime = 0L;
+        signalStrengthAccumulator = 0f;
+        samplesCount = 0;
+
+        Log.d(TAG, "LocationStateManager reset");
     }
 }
