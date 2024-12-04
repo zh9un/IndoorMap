@@ -146,7 +146,18 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     }
 
     private void setupObservers() {
-        locationManager.getCurrentLocation().observe(this, this::updateLocationInfo);
+        // LocationManager의 데이터를 ViewModel로 전달
+        locationManager.getCurrentLocation().observe(this, location -> {
+            viewModel.updateCurrentLocation(location);
+            updateLocationInfo(location);
+        });
+
+        locationManager.getCurrentEnvironment().observe(this, environment -> {
+            viewModel.updateEnvironment(environment);
+            updateEnvironmentInfo(environment);
+        });
+
+        // ViewModel 관찰
         viewModel.getCurrentEnvironment().observe(this, this::updateEnvironmentInfo);
     }
 
@@ -160,32 +171,31 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     private void updateEnvironmentInfo(EnvironmentType environment) {
         if (environment == null) return;
 
-        String environmentText = getEnvironmentText(environment);
-        binding.environmentStatus.setText(environmentText);
-
-        // 배경색 업데이트
+        String environmentText;
         int backgroundColor;
+
         switch (environment) {
             case INDOOR:
+                environmentText = "실내 모드";
                 backgroundColor = ContextCompat.getColor(this, R.color.environment_indoor);
                 break;
             case OUTDOOR:
+                environmentText = "실외 모드";
                 backgroundColor = ContextCompat.getColor(this, R.color.environment_outdoor);
                 break;
             case TRANSITION:
+                environmentText = "전환 중";
                 backgroundColor = ContextCompat.getColor(this, R.color.environment_transition);
                 break;
             default:
+                environmentText = "알 수 없음";
                 backgroundColor = ContextCompat.getColor(this, R.color.environment_unknown);
-                break;
         }
-        binding.environmentStatus.getBackground()
-                .setColorFilter(backgroundColor, PorterDuff.Mode.SRC_IN);
 
-        // 음성 안내
-        if (!isDemoMode) {
-            String announcement = String.format("%s 모드입니다", environmentText);
-            voiceGuideManager.announce(announcement);
+        if (binding != null && binding.environmentStatus != null) {
+            binding.environmentStatus.setText(environmentText);
+            binding.environmentStatus.getBackground()
+                    .setColorFilter(backgroundColor, PorterDuff.Mode.SRC_IN);
         }
     }
 

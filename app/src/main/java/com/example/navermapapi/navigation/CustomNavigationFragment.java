@@ -34,6 +34,8 @@ import com.naver.maps.map.CameraPosition;
 import com.naver.maps.map.CameraUpdate;
 import com.naver.maps.map.util.FusedLocationSource;
 
+import java.util.Locale;
+
 import javax.inject.Inject;
 import dagger.hilt.android.AndroidEntryPoint;
 
@@ -81,6 +83,9 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
 
     private void setupObservers() {
         viewModel.getCurrentLocation().observe(getViewLifecycleOwner(), this::handleLocationUpdate);
+        viewModel.getCurrentEnvironment().observe(getViewLifecycleOwner(), environment -> {
+            updateNavigationInfo();  // 환경 변화 시에도 navigation_info 업데이트
+        });
         viewModel.getDestination().observe(getViewLifecycleOwner(), this::updateDestinationUI);
     }
 
@@ -187,11 +192,33 @@ public class CustomNavigationFragment extends Fragment implements OnMapReadyCall
     }
 
     private void updateNavigationInfo() {
-        LatLng destination = viewModel.getDestination().getValue();
-        LocationData currentLocation = viewModel.getCurrentLocation().getValue();
+        if (binding == null || binding.navigationInfo == null) return;
 
-        if (destination != null && currentLocation != null) {
-            calculateAndShowPath();
+        StringBuilder info = new StringBuilder();
+
+        // 현재 위치
+        LocationData location = viewModel.getCurrentLocation().getValue();
+        if (location != null) {
+            info.append(String.format(Locale.getDefault(),
+                    "현재 위치: %.6f, %.6f\n",
+                    location.getLatitude(),
+                    location.getLongitude()));
+        }
+
+        binding.navigationInfo.setText(info.toString());
+        Log.d(TAG, "Navigation info updated: " + info.toString());
+    }
+
+    private String getEnvironmentText(EnvironmentType environment) {
+        switch (environment) {
+            case INDOOR:
+                return "실내 모드";
+            case OUTDOOR:
+                return "실외 모드";
+            case TRANSITION:
+                return "전환 중";
+            default:
+                return "알 수 없음";
         }
     }
 

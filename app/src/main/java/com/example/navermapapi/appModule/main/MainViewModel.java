@@ -27,7 +27,7 @@ import javax.inject.Inject;
 @HiltViewModel
 public class MainViewModel extends ViewModel {
     private final MutableLiveData<LocationData> currentLocation = new MutableLiveData<>();
-    private final MutableLiveData<EnvironmentType> currentEnvironment = new MutableLiveData<>();
+    private final MutableLiveData<EnvironmentType> currentEnvironment = new MutableLiveData<>(EnvironmentType.OUTDOOR);
     private final MutableLiveData<String> errorState = new MutableLiveData<>();
     private final MutableLiveData<LatLng> destination = new MutableLiveData<>();
     private final MutableLiveData<List<LatLng>> path = new MutableLiveData<>();
