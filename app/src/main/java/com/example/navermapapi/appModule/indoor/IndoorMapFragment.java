@@ -29,6 +29,7 @@ import com.example.navermapapi.utils.FloorPlanConfig;
 import com.example.navermapapi.utils.FloorPlanManager;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.geometry.LatLngBounds;
+import com.naver.maps.map.CameraAnimation;
 import com.naver.maps.map.CameraPosition;
 import com.naver.maps.map.CameraUpdate;
 import com.naver.maps.map.LocationTrackingMode;
@@ -182,10 +183,10 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
         }
     }
 
-    private void setupMapSettings(@NonNull NaverMap naverMap) {
-        naverMap.setLocationSource(locationSource);
-        naverMap.setLocationTrackingMode(LocationTrackingMode.Follow);
-        naverMap.setIndoorEnabled(true);
+    private void setupMapSettings(@NonNull NaverMap naverMap) { // GPS 위치 소스 비활성화
+        naverMap.setLocationSource(null);
+        // 기본 위치 트래킹 모드 비활성화
+        naverMap.setLocationTrackingMode(LocationTrackingMode.None);
 
         naverMap.setMinZoom(17.0);
         naverMap.setMaxZoom(20.0);
@@ -225,28 +226,36 @@ public class IndoorMapFragment extends Fragment implements OnMapReadyCallback {
             return;
 
         try {
-            LatLng position = new LatLng(location.getLatitude(),
-                    location.getLongitude());
-            locationOverlay.setPosition(position);
-            locationOverlay.setBearing(location.getBearing());
+            // PDR/비콘 기반 상대 좌표를 절대 좌표로 변환
+            double offsetX = location.getOffsetX();
+            double offsetY = location.getOffsetY();
 
-            // 상태에 따라 마커 스타일 변경
-            if (location.getEnvironment() == EnvironmentType.INDOOR) {
-                locationOverlay.setIcon(OverlayImage.fromResource(R.drawable.ic_indoor_location)); // Use an indoor icon
-                locationOverlay.setCircleColor(Color.GREEN); // Change circle color
-            } else {
-                locationOverlay.setIcon(OverlayImage.fromResource(R.drawable.ic_outdoor_location)); // Use an outdoor icon
-                locationOverlay.setCircleColor(Color.BLUE); // Change circle color
+            // 초기 위치 기준으로 상대 좌표 변환
+            LocationData initialLocation = viewModel.getCurrentLocation().getValue();
+            if (initialLocation != null) {
+                double metersPerLatitude = 111320; // 1도당 미터
+                double metersPerLongitude = 111320 * Math.cos(Math.toRadians(initialLocation.getLatitude()));
+
+                double newLat = initialLocation.getLatitude() + (offsetY / metersPerLatitude);
+                double newLng = initialLocation.getLongitude() + (offsetX / metersPerLongitude);
+
+                LatLng position = new LatLng(newLat, newLng);
+                locationOverlay.setPosition(position);
+                locationOverlay.setBearing(location.getBearing());
+
+                // LocationOverlay는 정수형 반경을 요구하므로 반올림
+                locationOverlay.setCircleRadius((int)Math.round(location.getAccuracy()));
+
+                if (viewModel.isAutoTrackingEnabled()) {
+                    CameraPosition cameraPosition = new CameraPosition(position,
+                            naverMap.getCameraPosition().zoom,
+                            0,  // tilt
+                            location.getBearing());  // bearing
+                    CameraUpdate cameraUpdate = CameraUpdate.toCameraPosition(cameraPosition)
+                            .animate(CameraAnimation.Easing, 300);
+                    naverMap.moveCamera(cameraUpdate);
+                }
             }
-
-            if (viewModel.isAutoTrackingEnabled()) {
-                updateCamera(position, location.getBearing());
-            }
-
-            updateStepCount();
-            updateDirectionInfo(location.getBearing());
-            checkLocationInFloorPlan(position);
-
         } catch (Exception e) {
             Log.e(TAG, "Error updating location UI", e);
         }

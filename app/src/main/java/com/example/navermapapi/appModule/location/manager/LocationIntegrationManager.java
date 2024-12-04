@@ -114,7 +114,7 @@ public class LocationIntegrationManager {
         if (!isEnvironmentForced) {
             EnvironmentType newEnvironment = determineEnvironment(location);
             if (newEnvironment != currentEnvironment.getValue()) {
-                handleEnvironmentChange(newEnvironment, location);
+                handleEnvironmentChange(newEnvironment);
             }
         }
 
@@ -141,18 +141,18 @@ public class LocationIntegrationManager {
     public void forceEnvironment(EnvironmentType environment) {
         isEnvironmentForced = true;
         forcedEnvironment = environment;
-        handleEnvironmentChange(environment, null);
+        handleEnvironmentChange(environment);
     }
 
     public void resetEnvironment() {
         isEnvironmentForced = false;
         LocationData currentLocation = this.currentLocation.getValue();
         if (currentLocation != null) {
-            handleEnvironmentChange(determineEnvironment(currentLocation), currentLocation);
+            handleEnvironmentChange(determineEnvironment(currentLocation));
         }
     }
 
-    private void handleEnvironmentChange(EnvironmentType newEnvironment, @NonNull LocationData location) {
+    private void handleEnvironmentChange(EnvironmentType newEnvironment) {
         EnvironmentType currentEnv = currentEnvironment.getValue();
         if (currentEnv == newEnvironment) return;
 
@@ -160,14 +160,63 @@ public class LocationIntegrationManager {
 
         switch (newEnvironment) {
             case INDOOR:
-                startIndoorTracking(location);
+                handleIndoorTransition();
                 break;
+
             case OUTDOOR:
-                startOutdoorTracking(location);
+                handleOutdoorTransition();
                 break;
+
             case TRANSITION:
-                // 전환 상태에서는 현재 사용 중인 제공자 유지
+                handleTransitionState();
                 break;
+        }
+    }
+
+    private void handleIndoorTransition() {
+        // GPS 완전 비활성화
+        gpsProvider.stopTracking();
+        LocationData lastLocation = currentLocation.getValue();
+        if (lastLocation != null) {
+            // PDR 초기 위치 설정
+            beaconProvider.setInitialLocation(lastLocation);
+            // PDR/비콘 기반 추적 시작
+            beaconProvider.startTracking();
+        }
+    }
+
+    private void handleOutdoorTransition() {
+        // PDR/비콘 추적 중지
+        beaconProvider.stopTracking();
+        // GPS 추적 재개
+        gpsProvider.startTracking();
+    }
+
+    private void handleTransitionState() {
+        // 두 시스템의 위치 정보를 가중치를 둬서 결합
+        LocationData gpsLocation = gpsProvider.getLastLocation();
+        LocationData pdrLocation = beaconProvider.getLastLocation();
+
+        if (gpsLocation != null && pdrLocation != null) {
+            float gpsStrength = gpsProvider.getCurrentSignalStrength();
+            // 신호 강도를 0~1 범위로 정규화 (-100dBm ~ -50dBm 기준)
+            double gpsWeight = Math.max(0, Math.min(1, (gpsStrength + 100) / 50));
+            double pdrWeight = 1.0 - gpsWeight;
+
+            double blendedLat = (gpsLocation.getLatitude() * gpsWeight) +
+                    (pdrLocation.getLatitude() * pdrWeight);
+            double blendedLng = (gpsLocation.getLongitude() * gpsWeight) +
+                    (pdrLocation.getLongitude() * pdrWeight);
+
+            LocationData blendedLocation = new LocationData.Builder(blendedLat, blendedLng)
+                    .accuracy(Math.max(gpsLocation.getAccuracy(), pdrLocation.getAccuracy()))
+                    .environment(EnvironmentType.TRANSITION)
+                    .provider("HYBRID")
+                    .bearing((float)(gpsLocation.getBearing() * gpsWeight +
+                            pdrLocation.getBearing() * pdrWeight))
+                    .build();
+
+            currentLocation.setValue(blendedLocation);
         }
     }
 
